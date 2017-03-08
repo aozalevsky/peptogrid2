@@ -1,0 +1,10 @@
+syntax: glob
+**.pyc
+**.log
+**.swp
+**.swo
+**.c
+**.html
+**.so
+**.o
+data
