@@ -1,5 +1,3 @@
-
-
 import sys
 
 
@@ -10,10 +8,8 @@ import h5py
 from mpi4py import MPI
 import os
 
-
 from prody import parsePDB
 import numpy as np
-import math
 import time
 
 sys.path.append('/home/domain/silwer/work/')
@@ -36,59 +32,78 @@ NPROCS = comm.size
 # Get rank
 rank = comm.rank
 
+step, padding, GminXYZ, N = None, None, None, None
 
-step = float(sys.argv[1])
+if rank == 0:
+    step = float(sys.argv[1])
 
-padding = max(gu.avdw.values())  # Largest VdW radii - 1.7A
+    center, box = gu.get_box_from_vina(sys.argv[2])
 
-center, box = gu.get_box_from_vina(sys.argv[2])
+    padding = max(gu.avdw.values())  # Largest VdW radii - 1.7A
+
+    L = box + padding * (2 * np.int(sys.argv[4]))
+
+    print 'CENTER', center
+    print 'BOX', box, L
 
 
-L = box + 2 * padding
+    GminXYZ = center - L / 2.0
+    GminXYZ = gu.adjust_grid(GminXYZ, step, padding)
 
-GminXYZ = center - box / 2.0
-GminXYZ = gu.adjust_grid(GminXYZ, step, padding)
 
-N = int(math.ceil(L / step))
+    N = np.ceil((L / step)).astype(np.int)
 
-# print GminXYZ, N
+    print 'GMIN', GminXYZ, N
 
-with open('nucl', 'r') as f:
-    model_list = map(str.strip, f.readlines())
+    with open('box_coords.txt', 'w') as f:
+        f.write('BOX: ' + ' '.join(GminXYZ.astype(np.str)) + '\n')
+        f.write('STEP: ' + sys.argv[1] + '\n')
+        f.write('NSTEPS: ' + ';'.join(N.astype(np.str)) + '\n')
 
-with open('box_coords.txt', 'w') as f:
-    f.write('BOX: ' + ' '.join(GminXYZ.astype(np.str)) + '\n')
-    f.write('STEP: ' + sys.argv[1] + '\n')
-    f.write('NSTEPS: ' + str(N) + '\n')
+
+
+step = comm.bcast(step)
+padding = comm.bcast(padding)
+GminXYZ = comm.bcast(GminXYZ)
+N = comm.bcast(N)
+
+model_list = np.loadtxt('nucl', dtype='S128')
 
 M = len(model_list)
 
-
-NUCS = ['DA', 'DT', 'DG', 'DC']
-NUCS_GRID_t = {}
-
+NUCS = ['DA', 'DT', 'DG', 'DC', 'P']
 
 # Init storage for matrices
 # Get file name
 SSfn = sys.argv[3]
+tSSfn = 'tmp.' + sys.argv[3]
 # Open matrix file in parallel mode
-SSf = h5py.File(SSfn, 'w', driver='mpio', comm=comm)
+tSSf = h5py.File(tSSfn, 'w', driver='mpio', comm=comm)
 
-
-NUCS_GRID = {}
-Ggrid = {}
-dGgrid = {}
 for i in NUCS:
-    Ggrid[i] = np.ndarray((N, N, N), dtype=np.float32)
-    dGgrid[i] = SSf.require_dataset(Ggrid.shape(), dtype=np.int8)
+    # Ggrid[i] = np.ndarray((N, N, N), dtype=np.float32)
+    tSSf.create_dataset(i, N, dtype=np.float)
 
-t0 = time.time()
-c = 0
 
 
 lm = len(model_list)
 
 cm = rank
+
+carbon = ['C2', 'C4', 'C5', 'C6', 'C7', 'C8']
+nitrogen = ['N1', 'N2', 'N3', 'N4', 'N6', 'N7', 'N9']
+oxygen = ['O2', 'O4', 'O6']
+ats = list()
+ats.extend(carbon)
+ats.extend(nitrogen)
+ats.extend(oxygen)
+base = 'name ' + ' '.join(ats)
+
+phosphate = ['P', 'OP1', 'OP2']
+phs = 'name ' + ' '.join(phosphate)
+
+t0 = time.time()
+c = 0
 
 while cm < lm:
     m = model_list[cm]
@@ -104,62 +119,98 @@ while cm < lm:
     try:
         for R in M.iterResidues():
 
-            RminXYZ, Rshape = gu.get_bounding(R.getCoords(), padding, step)
-            Rgrid = np.ndarray(Rshape, dtype=np.int)
-            Rgrid.fill(0)
+            # Nucleobases
 
-            for A in R.iterAtoms():
+            tR = R.select(base)
 
-                AminXYZ, Agrid = gu.sphere2grid(
-                    A.getCoords(), gu.avdw[A.getElement()], step)
-                NA = Agrid.shape[0]
+            Rgrid, RminXYZ = gu.process_residue(tR, padding, step)
 
-                adj = (AminXYZ - RminXYZ)
-                adj = (adj / step).astype(np.int)
-                x, y, z = adj
-                Rgrid[x: x + NA, y: y + NA, z: z + NA] += Agrid
-
-            np.clip(Rgrid, 0, 1, out=Rgrid)
             adj = (RminXYZ - GminXYZ)
             adj = (adj / step).astype(np.int)
             x, y, z = adj
 
-            Ggrid[R.getResname()][
-                x: x + Rshape[0],
-                y: y + Rshape[1],
-                z: z + Rshape[2]
-                ] += Rgrid
-    except ValueError:
+            #assert tSSf[R.getResname()].shape[0] > (x + Rgrid.shape[0])
+            #assert tSSf[R.getResname()].shape[1] > (x + Rgrid.shape[1])
+            #assert tSSf[R.getResname()].shape[2] > (x + Rgrid.shape[2])
+
+            tSSf[R.getResname()][
+                x: x + Rgrid.shape[0],
+                y: y + Rgrid.shape[1],
+                z: z + Rgrid.shape[2]
+            ] += Rgrid
+
+            # Phosphates
+
+            tR = R.select(phs)
+
+            Rgrid, RminXYZ = gu.process_residue(tR, padding, step)
+
+            adj = (RminXYZ - GminXYZ)
+            adj = (adj / step).astype(np.int)
+            x, y, z = adj
+
+            #assert tSSf[R.getResname()].shape[0] > (x + Rgrid.shape[0])
+            #assert tSSf[R.getResname()].shape[1] > (x + Rgrid.shape[1])
+            #assert tSSf[R.getResname()].shape[2] > (x + Rgrid.shape[2])
+
+            tSSf['P'][
+                x: x + Rgrid.shape[0],
+                y: y + Rgrid.shape[1],
+                z: z + Rgrid.shape[2]
+            ] += Rgrid
+
+    except ValueError, e:
         print("echo %s >> errored" % m)
+        print e, 'LINE: ', sys.exc_info()[-1].tb_lineno
 
-Gstep = np.array([step, step, step], dtype=np.float)
+    cm += NPROCS
 
-for i in NUCS:
-    Gmax  = np.max(Ggrid[i])
-    submin, submax = gu.submatrix(Ggrid[i])
+comm.Barrier()
 
-    SUBmin = comm.gather(submin)
-    SUBmax = comm.gather(submax)
+if rank == 0:
+    print np.max(tSSf['DA'])
+
+
+tSSf.close()
 
 
 if rank == 0:
+    tSSf = h5py.File(tSSfn, 'r')
+    SSf = h5py.File(SSfn, 'w')
 
-    submin = comm.bcast(np.min(SUBmin, axis=0))
-    submax = comm.bcast(np.max(SUBmax, axis=0))
+    nmax = 1.0
+    SUBmin = list()
+    SUBmax = list()
 
 
+    for i in NUCS[:-1]:
+        nmax = max(nmax, np.max(tSSf[i]))
+        submin, submax = gu.submatrix(tSSf[i])
+        SUBmin.append(submin)
+        SUBmax.append(submax)
 
+    submin = np.min(np.array(SUBmin), axis=0)
+    submax = np.max(np.array(SUBmax), axis=0)
 
-for i in NUCS:
-    grfile = i + '_grid.hdf5'
-#    Ggrid[i].dump(i + '_grid.dump')
-    F = h5py.File(grfile, "w")
-    Fg = F.create_dataset('grid', data=Ggrid[i])
-    Sg = F.create_dataset('step', data=Gstep)
-    Og = F.create_dataset('origin', data=GminXYZ)
-    F.close()
+    GminXYZ = GminXYZ + submin * step
 
-# SSf.close()
+    print nmax
+
+    for i in NUCS:
+        tG = np.floor(
+            (tSSf[i][
+                submin[0]:submax[0],
+                submin[1]:submax[1],
+                submin[2]:submax[2],
+                ]/ nmax) * 100.0)
+        SSf.create_dataset(i, data=tG.astype(np.int8))
+
+    Gstep = np.array([step, step, step], dtype=np.float)
+    SSf.create_dataset('step', data=Gstep)
+    SSf.create_dataset('origin', data=GminXYZ)
+
+    SSf.close()
+    os.remove(tSSfn)
 
 if debug is True:
     pr.disable()
@@ -167,5 +218,4 @@ if debug is True:
     sortby = 'tottime'
     ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
     # ps.print_stats()
-    ps.dump_stats('stats.gg')
-    # print s.getvalue()
+    ps.dump_stats('stats.gg# print s.getvalue()')

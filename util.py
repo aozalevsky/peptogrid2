@@ -59,7 +59,7 @@ def adjust_grid(c, step, padding=0):
     return nc
 
 
-def sphere2grid(c, r, step):
+def sphere2grid(c, r, step, value=-np.inf):
     nc = adjust_grid(c, step)
     adj = nc - c
     r2x = np.arange(-r - adj[0], r - adj[0] + step, step) ** 2
@@ -68,7 +68,7 @@ def sphere2grid(c, r, step):
     dist2 = r2x[:, None, None] + r2y[:, None] + r2z
     nc = nc - dist2.shape[0] / 2 * step
     vol = (dist2 <= r ** 2).astype(np.int)
-    vol *= -999
+    vol *= value
     return (nc, vol)
 
 
@@ -107,7 +107,27 @@ def submatrix(arr):
         np.array(
             [x.max() + 1, y.max() + 1, z.max() + 1]
         ),
-        )
+    )
+
+
+def process_residue(tR, padding, step):
+
+    RminXYZ, Rshape = get_bounding(tR.getCoords(), padding, step)
+    Rgrid = np.zeros(Rshape, dtype=np.int)
+
+    for A in tR.iterAtoms():
+
+        AminXYZ, Agrid = sphere2grid(
+            A.getCoords(), avdw[A.getElement()], step, 1)
+        NA = Agrid.shape[0]
+
+        adj = (AminXYZ - RminXYZ)
+        adj = (adj / step).astype(np.int)
+        x, y, z = adj
+        Rgrid[x: x + NA, y: y + NA, z: z + NA] += Agrid
+
+    np.clip(Rgrid, 0, 1, out=Rgrid)
+    return (Rgrid, RminXYZ)
 
 
 # In[18]:
