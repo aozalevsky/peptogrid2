@@ -59,6 +59,14 @@ def load_grid_nuc(fname, prefix='nuc', ramp='nuc'):
         100.00, 0.98, 0.01, 1.00, 1.00,
     ])
 
+    cmd.volume_ramp_new('ramp_delta', [
+        -1.0, 1.00, 0.00, 0.00, 0.00,
+        -0.4,  1.00, 1.00, 0.00, 1.0,
+        -0.2, 1.00, 0.00, 0.00, 0.00,
+        0.2, 0.00, 0.00, 1.00, 0.00,
+        0.4,  0.00, 1.00, 1.00, 1.0,
+        1.0, 0.00, 0.00, 1.00, 0.00])
+
     F = h5py.File(fname, 'r')
     grid = F['step'][()]
     origin = F['origin'][()]
@@ -74,6 +82,8 @@ def load_grid_nuc(fname, prefix='nuc', ramp='nuc'):
 
         if ramp == 'nuc':
             cmd.volume_color(volname, 'ramp_' + i)
+        elif ramp == 'delta':
+            cmd.volume_color(volname, 'ramp_delta')
         else:
             cmd.volume_color(volname, 'ramp_jet')
 
