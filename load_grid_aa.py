@@ -3,7 +3,7 @@ from pymol import cmd
 import h5py
 
 
-def load_grid_nuc(fname, prefix='nuc', ramp='nuc'):
+def load_grid_aa(fname, prefix='aa', ramp='jet'):
 
     cmd.volume_ramp_new('ramp_DA', [
         0.00, 1.00, 1.00, 1.00, 0.00,
@@ -71,7 +71,11 @@ def load_grid_nuc(fname, prefix='nuc', ramp='nuc'):
     grid = F['step'][()]
     origin = F['origin'][()]
 
-    for i in ['DG', 'DA', 'DT', 'DC', 'P']:
+    NUCS = set(F.keys())
+    protected = set(['origin', 'step'])
+    NUCS -= protected
+
+    for i in NUCS:
         data = F[i][()]
         b = Brick.from_numpy(data, grid, origin)
         bname = prefix + '_' + i
@@ -88,4 +92,4 @@ def load_grid_nuc(fname, prefix='nuc', ramp='nuc'):
             cmd.volume_color(volname, 'ramp_jet')
 
 # The extend command makes this runnable as a command, from PyMOL.
-cmd.extend("load_grid_nuc", load_grid_nuc)
+cmd.extend("load_grid_aa", load_grid_aa)
