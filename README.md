@@ -2,6 +2,8 @@ grid_atom_* - scripts to create hdf5 grids
 load_grid* - pymol scripts to load grids from hdf5 files into pymol
 
 Typical grid preparation:
+
+```
 # Dump grid to file
 
 grfile = 'grid8.hdf5'
@@ -15,3 +17,4 @@ F.create_dataset('step', data=Gsteps)
 # [0.0, 0.0, 0.0]
 F.create_dataset('origin', data=GminXYZ)
 F.close()
+```
