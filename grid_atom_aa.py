@@ -12,6 +12,9 @@ from prody import parsePDB
 import numpy as np
 import time
 
+import Bio.PDB.Polypeptide as poly
+from collections import Counter
+
 sys.path.append('/home/domain/silwer/work/')
 import grid_scripts.util as gu
 
@@ -26,7 +29,7 @@ if debug is True:
 
 # Get MPI info
 comm = MPI.COMM_WORLD
-NPROCS_LOCAL = int(os.environ['OMPI_COMM_WORLD_LOCAL_SIZE'])
+# NPROCS_LOCAL = int(os.environ['OMPI_COMM_WORLD_LOCAL_SIZE'])
 # Get number of processes
 NPROCS = comm.size
 # Get rank
@@ -46,10 +49,8 @@ if rank == 0:
     print 'CENTER', center
     print 'BOX', box, L
 
-
     GminXYZ = center - L / 2.0
     GminXYZ = gu.adjust_grid(GminXYZ, step, padding)
-
 
     N = np.ceil((L / step)).astype(np.int)
 
@@ -61,7 +62,6 @@ if rank == 0:
         f.write('NSTEPS: ' + ';'.join(N.astype(np.str)) + '\n')
 
 
-
 step = comm.bcast(step)
 padding = comm.bcast(padding)
 GminXYZ = comm.bcast(GminXYZ)
@@ -71,7 +71,16 @@ model_list = np.loadtxt('nucl', dtype='S128')
 
 M = len(model_list)
 
-NUCS = ['DA', 'DT', 'DG', 'DC', 'P']
+NUCS = [
+    "A", "R", "N", "D", "C", "E", "Q", "G", "H",
+    "I", "L", "K", "M", "F", "P", "S", "T", "W", "Y", "V", "BCK", "UNK"]
+
+
+NUCS = [
+    "ALA", "ARG", "ASN", "ASP", "CYS", "GLU", "GLN", "GLY", "HIS", "ILE",
+    "LEU", "LYS", "MET", "PHE", "PRO", "SER", "THR", "TRP", "TYR", "VAL",
+    "BCK", "UNK"
+    ]
 
 # Init storage for matrices
 # Get file name
@@ -85,22 +94,15 @@ for i in NUCS:
     tSSf.create_dataset(i, N, dtype=np.float)
 
 
-
 lm = len(model_list)
 
 cm = rank
 
-carbon = ['C2', 'C4', 'C5', 'C6', 'C7', 'C8']
-nitrogen = ['N1', 'N2', 'N3', 'N4', 'N6', 'N7', 'N9']
-oxygen = ['O2', 'O4', 'O6']
-ats = list()
-ats.extend(carbon)
-ats.extend(nitrogen)
-ats.extend(oxygen)
-base = 'name ' + ' '.join(ats)
 
-phosphate = ['P', 'OP1', 'OP2']
+phosphate = ['N', 'CA', 'C', 'O']
 phs = 'name ' + ' '.join(phosphate)
+
+base = 'not ' + phs
 
 t0 = time.time()
 c = 0
@@ -119,25 +121,26 @@ while cm < lm:
     try:
         for R in M.iterResidues():
 
+            if R.getResname() == "UNK":
+                continue
+
             # Nucleobases
 
             tR = R.select(base)
 
-            Rgrid, RminXYZ = gu.process_residue(tR, padding, step)
+            if tR:
+                Rgrid, RminXYZ = gu.process_residue(tR, padding, step)
 
-            adj = (RminXYZ - GminXYZ)
-            adj = (adj / step).astype(np.int)
-            x, y, z = adj
+                adj = (RminXYZ - GminXYZ)
+                adj = (adj / step).astype(np.int)
+                x, y, z = adj
 
-            #assert tSSf[R.getResname()].shape[0] > (x + Rgrid.shape[0])
-            #assert tSSf[R.getResname()].shape[1] > (x + Rgrid.shape[1])
-            #assert tSSf[R.getResname()].shape[2] > (x + Rgrid.shape[2])
 
-            tSSf[R.getResname()][
-                x: x + Rgrid.shape[0],
-                y: y + Rgrid.shape[1],
-                z: z + Rgrid.shape[2]
-            ] += Rgrid
+                tSSf[R.getResname()][
+                    x: x + Rgrid.shape[0],
+                    y: y + Rgrid.shape[1],
+                    z: z + Rgrid.shape[2]
+                ] += Rgrid
 
             # Phosphates
 
@@ -149,11 +152,11 @@ while cm < lm:
             adj = (adj / step).astype(np.int)
             x, y, z = adj
 
-            #assert tSSf[R.getResname()].shape[0] > (x + Rgrid.shape[0])
-            #assert tSSf[R.getResname()].shape[1] > (x + Rgrid.shape[1])
-            #assert tSSf[R.getResname()].shape[2] > (x + Rgrid.shape[2])
+            # assert tSSf[R.getResname()].shape[0] > (x + Rgrid.shape[0])
+            # assert tSSf[R.getResname()].shape[1] > (x + Rgrid.shape[1])
+            # assert tSSf[R.getResname()].shape[2] > (x + Rgrid.shape[2])
 
-            tSSf['P'][
+            tSSf['BCK'][
                 x: x + Rgrid.shape[0],
                 y: y + Rgrid.shape[1],
                 z: z + Rgrid.shape[2]
@@ -168,13 +171,27 @@ while cm < lm:
 comm.Barrier()
 
 if rank == 0:
-    print np.max(tSSf['DA'])
+    print np.max(tSSf[NUCS[0]])
 
 
 tSSf.close()
 
 
 if rank == 0:
+    with open(sys.argv[5], 'r') as f:
+        rseqs = f.readlines()
+        rseqs = map(lambda x: x.strip(), rseqs)
+
+    tseqs = list()
+    for seq in rseqs:
+        pl = len(seq)
+        for i in range(pl - 4 + 1):
+            tseqs.append(seq[i:i + 4])
+
+    seqs = set(tseqs)
+    sumseq = ''.join(seqs)
+    aac = Counter(sumseq)
+
     tSSf = h5py.File(tSSfn, 'r')
     SSf = h5py.File(SSfn, 'w')
 
@@ -182,27 +199,52 @@ if rank == 0:
     SUBmin = list()
     SUBmax = list()
 
+    sub = False
 
-    for i in NUCS[:-1]:
-        nmax = max(nmax, np.max(tSSf[i]))
-        submin, submax = gu.submatrix(tSSf[i])
+    for i in NUCS:
+
+        if i == 'UNK' or i == 'BCK':
+            continue
+
+        ttSSf = tSSf[i][:]
+        olet = poly.three_to_one(i)
+        mult = 1
+        if aac[olet] > 0:
+            mult = aac[olet]
+            print mult
+            ttSSf /= mult
+
+        nmax = max(nmax, np.max(ttSSf))
+
+        if sub is True:
+            submin, submax = gu.submatrix(tSSf[i])
+        else:
+            submin = np.zeros((3,), dtype=np.int)
+            submax = tSSf[i].shape
+
         SUBmin.append(submin)
         SUBmax.append(submax)
 
-    submin = np.min(np.array(SUBmin), axis=0)
-    submax = np.max(np.array(SUBmax), axis=0)
+    nNUCS = dict.fromkeys(NUCS, nmax)
+    nNUCS['BCK'] = np.max(tSSf['BCK'])
 
     GminXYZ = GminXYZ + submin * step
 
-    print nmax
 
     for i in NUCS:
-        tG = np.floor(
+
+        mult = 1
+        if i != 'BCK' and i != 'UNK':
+            olet = poly.three_to_one(i)
+            if aac[olet] > 0:
+                mult = aac[olet]
+
+        tG = np.ceil(
             (tSSf[i][
                 submin[0]:submax[0],
                 submin[1]:submax[1],
                 submin[2]:submax[2],
-                ]/ nmax) * 100.0)
+                ] / (nNUCS[i] * mult) * 100.0))
         SSf.create_dataset(i, data=tG.astype(np.int8))
 
     Gstep = np.array([step, step, step], dtype=np.float)
