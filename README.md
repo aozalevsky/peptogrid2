@@ -1,5 +1,6 @@
-grid_atom_* - scripts to create hdf5 grids
-load_grid* - pymol scripts to load grids from hdf5 files into pymol
+grid_atom_ - scripts to create hdf5 grids
+load_grid_ - pymol scripts to load grids from hdf5 files into pymol
+
 
 Typical grid preparation:
 
