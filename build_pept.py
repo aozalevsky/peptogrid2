@@ -7,9 +7,9 @@ from Bio.Seq import Seq
 import Bio.Alphabet
 import Bio.Alphabet.IUPAC
 import os
-import sys
 
 os.environ['CHEMPY_DATA'] = '/usr/share/pymol/data/chempy'
+
 
 def get_args():
     """Parse cli arguments"""
@@ -34,11 +34,11 @@ def get_args():
                         help='Add ACE and NME caps at the ends of peptide')
 
     parser.add_argument('-k', '--kmers',
-                     type=int,
-                     dest='kmers',
-                     metavar='KMERS',
-                     # default=4,
-                     help='Generate all kmers of length K from SEQUENCE')
+                        type=int,
+                        dest='kmers',
+                        metavar='KMERS',
+                        # default=4,
+                        help='Generate all kmers of length K from SEQUENCE')
 
     parser.add_argument('-v', '--verbose',
                         action='store_true',
@@ -48,6 +48,7 @@ def get_args():
     args_dict = vars(args)
     return args_dict
 
+
 def check_pept(seq):
     tseq = Seq(seq, Bio.Alphabet.IUPAC.protein)
     if Bio.Alphabet._verify_alphabet(tseq):
@@ -56,12 +57,14 @@ def check_pept(seq):
         msg = "%s is not a valid peptide sequence" % tseq
         raise ag.ArgumentTypeError(msg)
 
+
 def init_pymol():
     import __main__
     __main__.pymol_argv = ['pymol', '-qc']
     import pymol
     pymol.finish_launching()
     return pymol
+
 
 def gen_pept(
         seq,
@@ -105,4 +108,7 @@ def gen_pept(
 
 if __name__ == '__main__':
     args = get_args()
-    gen_pept(**args)
+    try:
+        gen_pept(**args)
+    except:
+        print('ERROR %s' % args['seq'])

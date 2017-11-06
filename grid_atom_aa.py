@@ -12,9 +12,6 @@ from prody import parsePDB
 import numpy as np
 import time
 
-import Bio.PDB.Polypeptide as poly
-from collections import Counter
-
 sys.path.append('/home/domain/silwer/work/')
 import grid_scripts.util as gu
 
@@ -71,16 +68,11 @@ model_list = np.loadtxt('nucl', dtype='S128')
 
 M = len(model_list)
 
-NUCS = [
-    "A", "R", "N", "D", "C", "E", "Q", "G", "H",
-    "I", "L", "K", "M", "F", "P", "S", "T", "W", "Y", "V", "BCK", "UNK"]
 
+NUCS = gu.three_let
 
-NUCS = [
-    "ALA", "ARG", "ASN", "ASP", "CYS", "GLU", "GLN", "GLY", "HIS", "ILE",
-    "LEU", "LYS", "MET", "PHE", "PRO", "SER", "THR", "TRP", "TYR", "VAL",
-    "BCK", "UNK"
-    ]
+iNUCS = dict(map(lambda x: (x[1], x[0],), enumerate(NUCS)))
+fNUCS = np.zeros((len(NUCS), ), dtype=np.int)
 
 # Init storage for matrices
 # Get file name
@@ -91,7 +83,7 @@ tSSf = h5py.File(tSSfn, 'w', driver='mpio', comm=comm)
 
 for i in NUCS:
     # Ggrid[i] = np.ndarray((N, N, N), dtype=np.float32)
-    tSSf.create_dataset(i, N, dtype=np.float)
+    tSSf.create_dataset(i, N, dtype=np.float, fillvalue=0.0)
 
 
 lm = len(model_list)
@@ -135,32 +127,37 @@ while cm < lm:
                 adj = (adj / step).astype(np.int)
                 x, y, z = adj
 
-
                 tSSf[R.getResname()][
                     x: x + Rgrid.shape[0],
                     y: y + Rgrid.shape[1],
                     z: z + Rgrid.shape[2]
                 ] += Rgrid
 
-            # Phosphates
+                fNUCS[iNUCS[R.getResname()]] += 1
+
+            # Backbone
 
             tR = R.select(phs)
 
-            Rgrid, RminXYZ = gu.process_residue(tR, padding, step)
+            if tR:
 
-            adj = (RminXYZ - GminXYZ)
-            adj = (adj / step).astype(np.int)
-            x, y, z = adj
+                Rgrid, RminXYZ = gu.process_residue(tR, padding, step)
 
-            # assert tSSf[R.getResname()].shape[0] > (x + Rgrid.shape[0])
-            # assert tSSf[R.getResname()].shape[1] > (x + Rgrid.shape[1])
-            # assert tSSf[R.getResname()].shape[2] > (x + Rgrid.shape[2])
+                adj = (RminXYZ - GminXYZ)
+                adj = (adj / step).astype(np.int)
+                x, y, z = adj
 
-            tSSf['BCK'][
-                x: x + Rgrid.shape[0],
-                y: y + Rgrid.shape[1],
-                z: z + Rgrid.shape[2]
-            ] += Rgrid
+                # assert tSSf[R.getResname()].shape[0] > (x + Rgrid.shape[0])
+                # assert tSSf[R.getResname()].shape[1] > (x + Rgrid.shape[1])
+                # assert tSSf[R.getResname()].shape[2] > (x + Rgrid.shape[2])
+
+                tSSf['BCK'][
+                    x: x + Rgrid.shape[0],
+                    y: y + Rgrid.shape[1],
+                    z: z + Rgrid.shape[2]
+                ] += Rgrid
+
+                fNUCS[iNUCS['BCK']] += 1
 
     except ValueError, e:
         print("echo %s >> errored" % m)
@@ -170,81 +167,35 @@ while cm < lm:
 
 comm.Barrier()
 
-if rank == 0:
-    print np.max(tSSf[NUCS[0]])
-
-
 tSSf.close()
 
+fNUCS = comm.reduce(fNUCS)
 
 if rank == 0:
-    with open(sys.argv[5], 'r') as f:
-        rseqs = f.readlines()
-        rseqs = map(lambda x: x.strip(), rseqs)
+    print 'fNUCS after:'
+    for i in iNUCS.keys():
+        print i, fNUCS[iNUCS[i]]
 
-    tseqs = list()
-    for seq in rseqs:
-        pl = len(seq)
-        for i in range(pl - 4 + 1):
-            tseqs.append(seq[i:i + 4])
-
-    seqs = set(tseqs)
-    sumseq = ''.join(seqs)
-    aac = Counter(sumseq)
+if rank == 0:
 
     tSSf = h5py.File(tSSfn, 'r')
     SSf = h5py.File(SSfn, 'w')
 
-    nmax = 1.0
-    SUBmin = list()
-    SUBmax = list()
-
-    sub = False
-
     for i in NUCS:
 
-        if i == 'UNK' or i == 'BCK':
-            continue
+        mult = max(1.0, fNUCS[iNUCS[i]])
+        ttSSf = tSSf[i][:] / mult
+        #ttSSf = tSSf[i][:]
+        # nmax = max(1.0, np.max(ttSSf))
+        nmax = np.max(ttSSf)
 
-        ttSSf = tSSf[i][:]
-        olet = poly.three_to_one(i)
-        mult = 1
-        if aac[olet] > 0:
-            mult = aac[olet]
-            print mult
-            ttSSf /= mult
+        if np.isnan(nmax) or (nmax == 0):
+            nmax = 1.0
 
-        nmax = max(nmax, np.max(ttSSf))
+        ttSSf /= nmax
+        ttSSf *= 100.0
 
-        if sub is True:
-            submin, submax = gu.submatrix(tSSf[i])
-        else:
-            submin = np.zeros((3,), dtype=np.int)
-            submax = tSSf[i].shape
-
-        SUBmin.append(submin)
-        SUBmax.append(submax)
-
-    nNUCS = dict.fromkeys(NUCS, nmax)
-    nNUCS['BCK'] = np.max(tSSf['BCK'])
-
-    GminXYZ = GminXYZ + submin * step
-
-
-    for i in NUCS:
-
-        mult = 1
-        if i != 'BCK' and i != 'UNK':
-            olet = poly.three_to_one(i)
-            if aac[olet] > 0:
-                mult = aac[olet]
-
-        tG = np.ceil(
-            (tSSf[i][
-                submin[0]:submax[0],
-                submin[1]:submax[1],
-                submin[2]:submax[2],
-                ] / (nNUCS[i] * mult) * 100.0))
+        tG = np.ceil(ttSSf)
         SSf.create_dataset(i, data=tG.astype(np.int8))
 
     Gstep = np.array([step, step, step], dtype=np.float)

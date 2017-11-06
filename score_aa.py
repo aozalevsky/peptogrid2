@@ -33,7 +33,7 @@ NPROCS = comm.size
 rank = comm.rank
 
 
-model_list = np.loadtxt('nucl', dtype='S128')
+model_list = np.loadtxt(sys.argv[2], dtype='S128')
 
 M = len(model_list)
 
@@ -61,7 +61,6 @@ gNUCS = dict()
 for i in NUCS:
     # Ggrid[i] = np.ndarray((N, N, N), dtype=np.float32)
     gNUCS[i] = SSf[i][()]
-
 
 
 lm = len(model_list)
@@ -98,6 +97,27 @@ while cm < lm:
 
             if tR:
 
+                Rgrid, RminXYZ = gu.process_residue(tR, padding, step)
+
+                adj = (RminXYZ - GminXYZ)
+                adj = (adj / step).astype(np.int)
+                x, y, z = adj
+
+            # print Rgrid.shape
+
+                mscore += np.sum(gNUCS[R.getResname()][
+                    x: x + Rgrid.shape[0],
+                    y: y + Rgrid.shape[1],
+                    z: z + Rgrid.shape[2]
+                ] * Rgrid) / len(tR)
+
+            # Phosphates
+
+            bck = False
+
+            tR = R.select(phs)
+
+            if tR and bck:
 
                 Rgrid, RminXYZ = gu.process_residue(tR, padding, step)
 
@@ -105,35 +125,15 @@ while cm < lm:
                 adj = (adj / step).astype(np.int)
                 x, y, z = adj
 
-
-            # print Rgrid.shape
-
-
-                mscore += np.sum(gNUCS[R.getResname()][
+                mscore += np.sum(gNUCS['BCK'][
                     x: x + Rgrid.shape[0],
                     y: y + Rgrid.shape[1],
                     z: z + Rgrid.shape[2]
-                    ] * Rgrid) / len(tR)
+                ] * Rgrid) / len(tR)
 
-            # Phosphates
-
-    #        tR = R.select(phs)
-
-    #        Rgrid, RminXYZ = gu.process_residue(tR, padding, step)
-
-    #        adj = (RminXYZ - GminXYZ)
-    #        adj = (adj / step).astype(np.int)
-    #        x, y, z = adj
-
-    #        mscore += np.sum(gNUCS['P'][
-    #            x: x + Rgrid.shape[0],
-    #            y: y + Rgrid.shape[1],
-    #            z: z + Rgrid.shape[2]
-    #        ] * Rgrid) / len(tR)
-
-    except ValueError, e:
+    except ValueError as e:
         print("echo %s >> errored" % m)
-        print e, 'LINE: ', sys.exc_info()[-1].tb_lineno
+        print(e, 'LINE: ', sys.exc_info()[-1].tb_lineno)
 
     tSSf['score'][cm] = mscore
 
@@ -142,10 +142,11 @@ while cm < lm:
 comm.Barrier()
 
 if rank == 0:
-    tscore =  np.zeros((lm,), dtype=[('name', 'S128'), ('score', 'f8')])
+    tscore = np.zeros((lm,), dtype=[('name', 'S128'), ('score', 'f8')])
     tscore['name'] = model_list[:]
     tscore['score'] = tSSf['score'][:]
     tscore.sort(order='score')
+    tscore['score'] /= tscore['score'][-1]
 
     np.savetxt('score_table.csv', tscore[::-1], fmt="%s\t%.2f")
 
@@ -157,7 +158,6 @@ SSf.close()
 
 if rank == 0:
     os.remove(tSSfn)
-
 
 
 if debug is True:

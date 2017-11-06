@@ -4,8 +4,11 @@
 
 # In[10]:
 
+import argparse as ag
 import ConfigParser
 import numpy as np
+np.set_printoptions(threshold='nan')
+
 # import gromacs
 # import gromacs.formats
 # import mdtraj
@@ -130,9 +133,23 @@ def process_residue(tR, padding, step):
     return (Rgrid, RminXYZ)
 
 
-# In[18]:
+def process_atom(A, padding, step):
 
-# In[19]:
+    AminXYZ, Agrid = sphere2grid(
+        A.getCoords(), avdw[A.getElement()], step, 1)
+
+    np.clip(Agrid, 0, 1, out=Agrid)
+    return (Agrid, AminXYZ)
+
+
+def process_atom_oddt(A, padding, step):
+
+    AminXYZ, Agrid = sphere2grid(
+        A[1], avdw[A[5][0]], step, 1)
+
+    np.clip(Agrid, 0, 1, out=Agrid)
+    return (Agrid, AminXYZ)
+
 
 aradii = {
     'H': 0.53,
@@ -191,3 +208,298 @@ def get_box_from_vina(f):
                    dtype=np.float)
 
     return (center, box)
+
+atypes = {
+    ("ALA", "CA"): "CA_BCK",
+    ("ALA", "CB"): "C",
+    ("ALA", "C"): "C_BCK",
+    # ("ALA", "N"): "N",
+    ("ALA", "N"): "NA_BCK",
+    ("ALA", "O"): "OA_BCK",
+    ("ARG", "CA"): "CA_BCK",
+    ("ARG", "CB"): "C",
+    ("ARG", "C"): "C_BCK",
+    ("ARG", "CD"): "C",
+    ("ARG", "CG"): "C",
+    ("ARG", "CZ"): "C",
+    ("ARG", "NE"): "NA",
+    ("ARG", "NH1"): "N",
+    ("ARG", "NH2"): "N",
+    # ("ARG", "N"): "N",
+    ("ARG", "N"): "NA_BCK",
+    ("ARG", "O"): "OA_BCK",
+    ("ASN", "CA"): "CA_BCK",
+    ("ASN", "CB"): "C",
+    ("ASN", "C"): "C_BCK",
+    ("ASN", "CG"): "C",
+    ("ASN", "ND2"): "N",
+    # ("ASN", "N"): "N",
+    ("ASN", "N"): "NA_BCK",
+    ("ASN", "OD1"): "OA",
+    ("ASN", "O"): "OA_BCK",
+    ("ASP", "CA"): "CA_BCK",
+    ("ASP", "CB"): "C",
+    ("ASP", "C"): "C_BCK",
+    ("ASP", "CG"): "C",
+    # ("ASP", "N"): "N",
+    ("ASP", "N"): "NA_BCK",
+    ("ASP", "OD1"): "OA",
+    ("ASP", "OD2"): "OA",
+    ("ASP", "O"): "OA_BCK",
+    ("CYS", "CA"): "CA_BCK",
+    ("CYS", "CB"): "C",
+    ("CYS", "C"): "C_BCK",
+    # ("CYS", "N"): "N",
+    ("CYS", "N"): "NA_BCK",
+    ("CYS", "O"): "OA_BCK",
+    ("CYS", "SG"): "SA",
+    ("GLN", "CA"): "CA_BCK",
+    ("GLN", "CB"): "C",
+    ("GLN", "C"): "C_BCK",
+    ("GLN", "CD"): "C",
+    ("GLN", "CG"): "C",
+    ("GLN", "NE2"): "N",
+    # ("GLN", "N"): "N",
+    ("GLN", "N"): "NA_BCK",
+    ("GLN", "OE1"): "OA",
+    ("GLN", "O"): "OA_BCK",
+    ("GLU", "CA"): "CA_BCK",
+    ("GLU", "CB"): "C",
+    ("GLU", "C"): "C_BCK",
+    ("GLU", "CD"): "C",
+    ("GLU", "CG"): "C",
+    # ("GLU", "N"): "N",
+    ("GLU", "N"): "NA_BCK",
+    ("GLU", "OE1"): "OA",
+    ("GLU", "OE2"): "OA",
+    ("GLU", "O"): "OA_BCK",
+    ("GLY", "CA"): "CA_BCK",
+    ("GLY", "C"): "C_BCK",
+    # ("GLY", "N"): "N",
+    ("GLY", "N"): "NA_BCK",
+    ("GLY", "O"): "OA_BCK",
+    ("HIS", "CA"): "CA_BCK",
+    ("HIS", "CB"): "C",
+    ("HIS", "C"): "C_BCK",
+    ("HIS", "CD2"): "A",
+    ("HIS", "CE1"): "A",
+    ("HIS", "CG"): "A",
+    ("HIS", "ND1"): "NA",
+    ("HIS", "NE2"): "NA",
+    # ("HIS", "N"): "N",
+    ("HIS", "N"): "NA_BCK",
+    ("HIS", "O"): "OA_BCK",
+    ("ILE", "CA"): "CA_BCK",
+    ("ILE", "CB"): "C",
+    ("ILE", "C"): "C_BCK",
+    ("ILE", "CD1"): "C",
+    ("ILE", "CG1"): "C",
+    ("ILE", "CG2"): "C",
+    # ("ILE", "N"): "N",
+    ("ILE", "N"): "NA_BCK",
+    ("ILE", "O"): "OA_BCK",
+    ("LEU", "CA"): "CA_BCK",
+    ("LEU", "CB"): "C",
+    ("LEU", "C"): "C_BCK",
+    ("LEU", "CD1"): "C",
+    ("LEU", "CD2"): "C",
+    ("LEU", "CG"): "C",
+    # ("LEU", "N"): "N",
+    ("LEU", "N"): "NA_BCK",
+    ("LEU", "O"): "OA_BCK",
+    ("LYS", "CA"): "CA_BCK",
+    ("LYS", "CB"): "C",
+    ("LYS", "C"): "C_BCK",
+    ("LYS", "CD"): "C",
+    ("LYS", "CE"): "C",
+    ("LYS", "CG"): "C",
+    # ("LYS", "N"): "N",
+    ("LYS", "N"): "NA_BCK",
+    ("LYS", "NZ"): "N",
+    ("LYS", "O"): "OA_BCK",
+    ("MET", "CA"): "CA_BCK",
+    ("MET", "CB"): "C",
+    ("MET", "C"): "C_BCK",
+    ("MET", "CE"): "C",
+    ("MET", "CG"): "C",
+    # ("MET", "N"): "N",
+    ("MET", "N"): "NA_BCK",
+    ("MET", "O"): "OA_BCK",
+    ("MET", "SD"): "SA",
+    ("PHE", "CA"): "CA_BCK",
+    ("PHE", "CB"): "C",
+    ("PHE", "C"): "C_BCK",
+    ("PHE", "CD1"): "A",
+    ("PHE", "CD2"): "A",
+    ("PHE", "CE1"): "A",
+    ("PHE", "CE2"): "A",
+    ("PHE", "CG"): "A",
+    ("PHE", "CZ"): "A",
+    # ("PHE", "N"): "N",
+    ("PHE", "N"): "NA_BCK",
+    ("PHE", "O"): "OA_BCK",
+    ("PRO", "CA"): "CA_BCK",
+    ("PRO", "CB"): "C",
+    ("PRO", "C"): "C_BCK",
+    ("PRO", "CD"): "C",
+    ("PRO", "CG"): "C",
+    ("PRO", "N"): "NA_BCK",
+    # ("PRO", "N"): "NA_BCK",
+    ("PRO", "O"): "OA_BCK",
+    ("SER", "CA"): "CA_BCK",
+    ("SER", "CB"): "C",
+    ("SER", "C"): "C_BCK",
+    # ("SER", "N"): "N",
+    ("SER", "N"): "NA_BCK",
+    ("SER", "OG"): "OA",
+    ("SER", "O"): "OA_BCK",
+    ("THR", "CA"): "CA_BCK",
+    ("THR", "CB"): "C",
+    ("THR", "C"): "C_BCK",
+    ("THR", "CG2"): "C",
+    # ("THR", "N"): "N",
+    ("THR", "N"): "NA_BCK",
+    ("THR", "OG1"): "OA",
+    ("THR", "O"): "OA_BCK",
+    ("TRP", "CA"): "CA_BCK",
+    ("TRP", "CB"): "C",
+    ("TRP", "C"): "C_BCK",
+    ("TRP", "CD1"): "A",
+    ("TRP", "CD2"): "A",
+    ("TRP", "CE2"): "A",
+    ("TRP", "CE3"): "A",
+    ("TRP", "CG"): "A",
+    ("TRP", "CH2"): "A",
+    ("TRP", "CZ2"): "A",
+    ("TRP", "CZ3"): "A",
+    ("TRP", "NE1"): "NA",
+    # ("TRP", "N"): "N",
+    ("TRP", "N"): "NA_BCK",
+    ("TRP", "O"): "OA_BCK",
+    ("TYR", "CA"): "CA_BCK",
+    ("TYR", "CB"): "C",
+    ("TYR", "C"): "C_BCK",
+    ("TYR", "CD1"): "A",
+    ("TYR", "CD2"): "A",
+    ("TYR", "CE1"): "A",
+    ("TYR", "CE2"): "A",
+    ("TYR", "CG"): "A",
+    ("TYR", "CZ"): "A",
+    # ("TYR", "N"): "N",
+    ("TYR", "N"): "NA_BCK",
+    ("TYR", "OH"): "OA",
+    ("TYR", "O"): "OA_BCK",
+    ("VAL", "CA"): "CA_BCK",
+    ("VAL", "CB"): "C",
+    ("VAL", "C"): "C_BCK",
+    ("VAL", "CG1"): "C",
+    ("VAL", "CG2"): "C",
+    # ("VAL", "N"): "N",
+    ("VAL", "N"): "NA_BCK",
+    ("VAL", "O"): "OA_BCK",
+
+    ("NME", "N"): "NA_BCK",
+    ("NME", "C"): "OA_BCK",
+    ("ACE", "CH3"): "C",
+    ("ACE", "O"): "OA_BCK",
+    ("ACE", "C"): "C_BCK",
+
+}
+
+one_let = [
+    "A", "R", "N", "D", "C", "E", "Q", "G", "H",
+    "I", "L", "K", "M", "F", "P", "S", "T", "W", "Y", "V", "BCK", "UNK"]
+
+
+three_let = [
+    "ALA", "ARG", "ASN", "ASP", "CYS", "GLU", "GLN", "GLY", "HIS", "ILE",
+    "LEU", "LYS", "MET", "PHE", "PRO", "SER", "THR", "TRP", "TYR", "VAL",
+    "BCK", "UNK", "NME", "ACE",
+]
+
+
+def get_args():
+    """Parse cli arguments"""
+
+    choices = ['grid', 'score']
+
+    parser = ag.ArgumentParser(
+        description='Grid scripts')
+
+    parser.add_argument('-m',
+                        required=True,
+                        dest='Sfn',
+                        metavar='FILE.hdf5',
+                        help='HDF5 file for all matrices')
+
+    parser.add_argument('-t', '--task',
+                        nargs='+',
+                        required=True,
+                        choices=choices,
+                        metavar='TASK',
+                        help='Task to do. Available options \
+                        are: %s' % ", ".join(choices))
+
+    parser.add_argument('-o', '--output',
+                        dest='output',
+                        metavar='OUTPUT',
+                        help='For "render" ans "cluster_to_trj" tasks \
+                        name of output PNG image of mutiframe PDB file')
+
+    parser.add_argument('--debug',
+                        action='store_true',
+                        help='Perform profiling')
+
+    parser.add_argument('--verbose',
+                        action='store_true',
+                        help='Be verbose')
+
+    parser.add_argument('-f',
+                        nargs='*',
+                        type=str,
+                        dest='pdb_list',
+                        metavar='FILE',
+                        help='PDB files')
+
+    parser.add_argument('-s', '--step',
+                        type=float,
+                        dest='step',
+                        metavar='STEP',
+                        default=0.1,
+                        help='Grid step in Angstroms')
+
+    parser.add_argument('-p', '--padding',
+                        type=int,
+                        dest='pad',
+                        metavar='PADDING',
+                        default=1,
+                        help='Padding around cell in Angstroms')
+
+    parser.add_argument('-c', '--config',
+                        type=str,
+                        dest='config',
+                        metavar='CONFIG',
+                        help='Vina config file')
+
+    args = parser.parse_args()
+
+    args_dict = vars(args)
+
+    return args_dict
+
+vina_types = (
+    'C.2',
+    'C.3',
+    'C.ar',
+    'C.ca',
+#    'H',
+    'N.2',
+    'N.3',
+    'N.am',
+    'N.ar',
+    'N.pl',
+    'O.2',
+    'O.3',
+    'O.co',
+    'S.3'
+)
