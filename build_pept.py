@@ -40,6 +40,22 @@ def get_args():
                         # default=4,
                         help='Generate all kmers of length K from SEQUENCE')
 
+    parser.add_argument('-e', '--c-cap',
+                        type=str,
+                        dest='ccap',
+                        metavar='ENDCAP',
+                        default='nme',
+                        choices=['nme', 'amc'],
+                        help='Cap to be placed on the C term')
+
+    parser.add_argument('-b', '--n-cap',
+                        type=str,
+                        dest='ncap',
+                        metavar='ENDCAP',
+                        default='ace',
+                        choices=['ace'],
+                        help='Cap to be placed on the N term')
+
     parser.add_argument('-v', '--verbose',
                         action='store_true',
                         help='Be verbose')
@@ -71,6 +87,8 @@ def gen_pept(
         out=None,
         caps=False,
         kmers=None,
+        ncap=None,
+        ccap=None,
         *args,
         **kwargs):
 
@@ -86,15 +104,15 @@ def gen_pept(
 
     for i in range(L - l + 1):
         tseq = seq[i:i + l]
-        print tseq
+        print(tseq)
         if caps:
-            pymol.cmd.editor.attach_amino_acid('pk1', 'ace')
+            pymol.cmd.editor.attach_amino_acid('pk1', ncap)
 
         for a in tseq:
             pymol.cmd.editor.attach_amino_acid('pk1', ott(a).lower())
 
         if caps:
-            pymol.cmd.editor.attach_amino_acid('pk1', 'nme')
+            pymol.cmd.editor.attach_amino_acid('pk1', ccap)
 
         if not out:
             out = '%s.pdb' % seq

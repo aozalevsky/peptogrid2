@@ -133,7 +133,7 @@ def process_residue(tR, padding, step):
     return (Rgrid, RminXYZ)
 
 
-def process_atom(A, padding, step):
+def process_atom(A, step):
 
     AminXYZ, Agrid = sphere2grid(
         A.getCoords(), avdw[A.getElement()], step, 1)
@@ -142,7 +142,7 @@ def process_atom(A, padding, step):
     return (Agrid, AminXYZ)
 
 
-def process_atom_oddt(A, padding, step):
+def process_atom_oddt(A, step):
 
     AminXYZ, Agrid = sphere2grid(
         A[1], avdw[A[5][0]], step, 1)
@@ -418,6 +418,7 @@ three_let = [
 ]
 
 
+
 def get_args():
     """Parse cli arguments"""
 
@@ -455,11 +456,25 @@ def get_args():
                         help='Be verbose')
 
     parser.add_argument('-f',
-                        nargs='*',
+                        nargs='+',
                         type=str,
                         dest='pdb_list',
                         metavar='FILE',
                         help='PDB files')
+
+    parser.add_argument('-e', '--exclude',
+                        nargs='*',
+                        type=str,
+                        dest='excl',
+                        metavar='TYPE',
+                        help='Vina types to exclude from scoring')
+
+    parser.add_argument('-i', '--include',
+                        nargs='*',
+                        type=str,
+                        dest='incl',
+                        metavar='TYPE',
+                        help='Vina types to exclude from scoring')
 
     parser.add_argument('-s', '--step',
                         type=float,
@@ -487,12 +502,59 @@ def get_args():
 
     return args_dict
 
+
+def get_args_box():
+    """Parse cli arguments"""
+
+    parser = ag.ArgumentParser()
+
+    parser.add_argument('-o', '--output',
+                        dest='output',
+                        metavar='OUTPUT',
+                        help='For "render" ans "cluster_to_trj" tasks \
+                        name of output PNG image of mutiframe PDB file')
+
+    parser.add_argument('--debug',
+                        action='store_true',
+                        help='Perform profiling')
+
+    parser.add_argument('--verbose',
+                        action='store_true',
+                        help='Be verbose')
+
+    parser.add_argument('-f',
+                        nargs='+',
+                        type=str,
+                        dest='pdb_list',
+                        metavar='FILE',
+                        help='PDB files')
+
+    parser.add_argument('-s', '--step',
+                        type=float,
+                        dest='step',
+                        metavar='STEP',
+                        default=0.1,
+                        help='Grid step in Angstroms')
+
+    parser.add_argument('-p', '--padding',
+                        type=int,
+                        dest='pad',
+                        metavar='PADDING',
+                        default=1,
+                        help='Padding around cell in Angstroms')
+
+    args = parser.parse_args()
+
+    args_dict = vars(args)
+
+    return args_dict
+
 vina_types = (
     'C.2',
     'C.3',
     'C.ar',
     'C.ca',
-#    'H',
+    #    'H',
     'N.2',
     'N.3',
     'N.am',
