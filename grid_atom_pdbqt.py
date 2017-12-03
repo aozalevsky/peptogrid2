@@ -1,6 +1,5 @@
 import sys
 
-
 # H5PY for storage
 import h5py
 
@@ -39,7 +38,8 @@ if rank == 0:
 
     center, box = gu.get_box_from_vina(args['config'])
 
-    padding = max(gu.aradii.values()) * 2 * args['pad']  # Largest VdW radii - 1.7A
+    padding = max(gu.avdw.values()) * 2 * \
+        args['pad']  # Largest VdW radii - 1.7A
 
     L = box + padding
 
@@ -61,16 +61,14 @@ if rank == 0:
     Sfn = args['Sfn']
     model_list = args['pdb_list']
 
-
-
     debug = args['debug']
 
 if debug:
-   import cProfile
-   import pstats
-   import StringIO
-   pr = cProfile.Profile()
-   pr.enable()
+    import cProfile
+    import pstats
+    import StringIO
+    pr = cProfile.Profile()
+    pr.enable()
 
 step = comm.bcast(step)
 padding = comm.bcast(padding)
@@ -107,7 +105,6 @@ for i in NUCS:
     tSf.create_dataset(i, N, dtype=np.float, fillvalue=0.0)
 
 
-
 lm = len(model_list)
 
 cm = rank
@@ -131,7 +128,7 @@ while cm < lm:
 
         for A in S.atom_dict:
 
-            Agrid, AminXYZ = gu.process_atom_oddt(A, padding, step)
+            Agrid, AminXYZ = gu.process_atom_oddt(A, step)
 
             adj = (AminXYZ - GminXYZ)
             adj = (adj / step).astype(np.int)
@@ -142,15 +139,27 @@ while cm < lm:
             if atype not in atypes:
                 continue
 
-            tSf[atype][
-                x: x + Agrid.shape[0],
-                y: y + Agrid.shape[1],
-                z: z + Agrid.shape[2]
-            ] += Agrid
+            try:
+
+
+                tSf[atype][
+                    x: x + Agrid.shape[0],
+                    y: y + Agrid.shape[1],
+                    z: z + Agrid.shape[2]
+                ] += Agrid
+
+            except:
+
+                print Agrid.shape
+                print z, z + Agrid.shape[2]
+                print tSf[atype].shape
+                print m
+                raise
+
 
             fNUCS[iNUCS[atype]] += 1
 
-            #except Exception as e:
+            # except Exception as e:
 
              #   print("echo %s >> errored" % m)
              #   print e, 'LINE: ', sys.exc_info()[-1].tb_lineno
@@ -159,7 +168,6 @@ while cm < lm:
     cm += NPROCS
 
 comm.Barrier()
-
 
 
 if rank == 0:
@@ -206,12 +214,18 @@ while i < ln:
     mult = fNUCS[i]
 
     if mult > 0:
-        ttSf = tSf[NUCS[i]][:]  #/ mult
+        ttSf = tSf[NUCS[i]][:]  # / mult
         ttSf /= mult
         ttSf /= nmax
         ttSf *= 100.0
 
         tG = np.ceil(ttSf).astype(np.int8)
+
+
+        tM_ = np.median(tG[np.nonzero(tG)])
+        print 'S B', np.sum(tG), tM_, np.max(tG)
+        tG[np.where(tG < (tM_ + 1.0))] = 0
+        print 'S A', np.sum(tG)
 
     else:
         tG = np.zeros(tSf[NUCS[i]].shape, dtype=np.int8)
