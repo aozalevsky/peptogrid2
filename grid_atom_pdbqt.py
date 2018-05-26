@@ -21,10 +21,6 @@
 # Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA.
 #
 
-import sys
-sys.path.append('/home/domain/silwer/work/')
-import grid_scripts.util as gu
-
 # H5PY for storage
 import h5py
 
@@ -32,14 +28,16 @@ import h5py
 from mpi4py import MPI
 import os
 
-from prody import parsePDB
 import numpy as np
 import time
 import oddt
+import sys
+import pyximport
+pyximport.install()
+import lvc
 
-from collections import Counter
-
-
+sys.path.append('/home/domain/silwer/work/')
+import grid_scripts.util as gu
 
 # Get MPI info
 comm = MPI.COMM_WORLD
@@ -51,7 +49,9 @@ rank = comm.rank
 
 Sfn = None
 model_list = None
+atypes = None
 step, padding, GminXYZ, N = None, None, None, None
+
 debug = False
 
 if rank == 0:
@@ -84,6 +84,22 @@ if rank == 0:
     Sfn = args['Sfn']
     model_list = args['pdb_list']
 
+    if args['default_types']:
+        atypes_ = gu.vina_types
+    else:
+        m_ = oddt.ob.readfile('pdbqt', model_list[0])
+        atypes_ = list()
+        for s in m_:
+            for a in s.atom_dict:
+                atypes_.append(a[5])
+
+    atypes_ = set(atypes_)
+    try:
+        atypes_.remove('H')  # we do not need hydrogens!
+    except KeyError:
+        pass
+    atypes = tuple(atypes_)
+
     debug = args['debug']
 
 if debug:
@@ -99,10 +115,9 @@ GminXYZ = comm.bcast(GminXYZ)
 N = comm.bcast(N)
 Sfn = comm.bcast(Sfn)
 model_list = comm.bcast(model_list)
+atypes = comm.bcast(atypes)
 
 M = len(model_list)
-
-atypes = gu.vina_types
 
 NUCS = atypes
 iNUCS = dict(map(lambda x: (x[1], x[0],), enumerate(NUCS)))
@@ -120,13 +135,12 @@ if rank == 0:
 # Open matrix file in parallel mode
 Sf = h5py.File(Sfn, 'w', driver='mpio', comm=comm)
 for i in NUCS:
-    Sf.create_dataset(i, N, dtype=np.int8, fillvalue=0)
+    Sf.create_dataset(i, N, dtype=np.int8, chunks=(N[0], N[1], 1))
 
 tSfn = 'tmp.' + Sfn
 tSf = h5py.File(tSfn, 'w', driver='mpio', comm=comm)
 for i in NUCS:
-    tSf.create_dataset(i, N, dtype=np.float, fillvalue=0.0)
-
+    tSf.create_dataset(i, N, dtype=np.float, chunks=(N[0], N[1], 1))
 
 lm = len(model_list)
 
@@ -163,30 +177,24 @@ while cm < lm:
                 continue
 
             try:
-
-
                 tSf[atype][
                     x: x + Agrid.shape[0],
                     y: y + Agrid.shape[1],
                     z: z + Agrid.shape[2]
                 ] += Agrid
 
+                fNUCS[iNUCS[atype]] += 1
+
             except:
 
-                print Agrid.shape
-                print z, z + Agrid.shape[2]
-                print tSf[atype].shape
-                print m
-                raise
-
-
-            fNUCS[iNUCS[atype]] += 1
+                print m, A
+                pass
 
             # except Exception as e:
 
-             #   print("echo %s >> errored" % m)
-             #   print e, 'LINE: ', sys.exc_info()[-1].tb_lineno
-             #   continue
+            #     print("echo %s >> errored" % m)
+            #     print e, 'LINE: ', sys.exc_info()[-1].tb_lineno
+            #     continue
 
     cm += NPROCS
 
@@ -215,7 +223,11 @@ while i < ln:
 
     if mult > 0:
         print NUCS[i]
-        nmax = np.max(tSf[NUCS[i]])
+        nmax = None
+
+        for j in range(N[2]):
+            nmax = max(nmax, np.max(tSf[NUCS[i]][:, :, j]))
+
         nNUCS[i] = nmax / mult
 
     i += NPROCS
@@ -237,23 +249,36 @@ while i < ln:
     mult = fNUCS[i]
 
     if mult > 0:
-        ttSf = tSf[NUCS[i]][:]  # / mult
-        ttSf /= mult
-        ttSf /= nmax
-        ttSf *= 100.0
+        med = lvc.Quantile(0.5)
 
-        tG = np.ceil(ttSf).astype(np.int8)
+        for j in range(N[2]):
+            ttSf = tSf[NUCS[i]][:, :, j]
+            med.add(ttSf[np.nonzero(ttSf)])
 
+    sum_b_ = 0
+    sum_a_ = 0
 
-        tM_ = np.median(tG[np.nonzero(tG)])
-        print 'S B', np.sum(tG), tM_, np.max(tG)
-        tG[np.where(tG < (tM_ + 1.0))] = 0
-        print 'S A', np.sum(tG)
+    for j in range(N[2]):
 
-    else:
-        tG = np.zeros(tSf[NUCS[i]].shape, dtype=np.int8)
+        if mult > 0:
 
-    Sf[NUCS[i]][:] = tG[:]
+            ttSf = tSf[NUCS[i]][:, :, j]
+            sum_b_ += np.sum(ttSf)
+            ttSf[np.where(ttSf < (med))] = 0
+            sum_a_ += np.sum(ttSf)
+
+            ttSf /= mult
+            ttSf /= nmax
+            ttSf *= 100.0
+            tG = np.ceil(ttSf).astype(np.int8)
+
+        else:
+            tG = np.zeros((N[0], N[1], 1), dtype=np.int8)
+
+        Sf[NUCS[i]][:, :, j] = tG
+
+    print 'S B', sum_b_, med
+    print 'S A', sum_a_
 
     i += NPROCS
 
