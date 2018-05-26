@@ -7,6 +7,14 @@
 import argparse as ag
 import ConfigParser
 import numpy as np
+
+from Bio.Seq import Seq
+import Bio.Alphabet
+import Bio.Alphabet.IUPAC
+
+# MPI parallelism
+from mpi4py import MPI
+
 np.set_printoptions(threshold='nan')
 
 # import gromacs
@@ -418,11 +426,10 @@ three_let = [
 ]
 
 
-
 def get_args():
     """Parse cli arguments"""
 
-    choices = ['grid', 'score']
+#    choices = ['grid', 'score']
 
     parser = ag.ArgumentParser(
         description='Grid scripts')
@@ -433,19 +440,20 @@ def get_args():
                         metavar='FILE.hdf5',
                         help='HDF5 file for all matrices')
 
-    parser.add_argument('-t', '--task',
-                        nargs='+',
-                        required=True,
-                        choices=choices,
-                        metavar='TASK',
-                        help='Task to do. Available options \
-                        are: %s' % ", ".join(choices))
+#    parser.add_argument('-t', '--task',
+#                        nargs='+',
+#                        required=True,
+#                        choices=choices,
+#                        metavar='TASK',
+#                        help='Task to do. Available options \
+#                        are: %s' % ", ".join(choices))
 
     parser.add_argument('-o', '--output',
                         dest='output',
                         metavar='OUTPUT',
-                        help='For "render" ans "cluster_to_trj" tasks \
-                        name of output PNG image of mutiframe PDB file')
+                        # help='For "render" ans "cluster_to_trj" tasks \
+                        # name of output PNG image of mutiframe PDB file'
+                        )
 
     parser.add_argument('--debug',
                         action='store_true',
@@ -454,6 +462,10 @@ def get_args():
     parser.add_argument('--verbose',
                         action='store_true',
                         help='Be verbose')
+
+    parser.add_argument('--default_types',
+                        action='store_true',
+                        help='Use default set of atom types for Vina')
 
     parser.add_argument('-f',
                         nargs='+',
@@ -565,3 +577,257 @@ vina_types = (
     'O.co',
     'S.3'
 )
+
+
+def check_pept(seq):
+    tseq = Seq(seq, Bio.Alphabet.IUPAC.protein)
+    if Bio.Alphabet._verify_alphabet(tseq):
+        return seq
+    else:
+        msg = "%s is not a valid peptide sequence" % tseq
+        raise ag.ArgumentTypeError(msg)
+
+
+def init_mpi():
+    class MPI_basket(object):
+        def __init__(self):
+            pass
+
+    mpi = MPI_basket()
+
+    # Get MPI info
+    mpi.comm = MPI.COMM_WORLD
+    # Get number of processes
+    mpi.NPROCS = mpi.comm.size
+    # Get rank
+    mpi.rank = mpi.comm.rank
+
+    return mpi
+
+
+def task(N, mpi):
+    l = np.floor(float(N) / mpi.NPROCS).astype(np.int)
+    b = mpi.rank * l
+    return (b, b + l)
+
+
+gromos_types = {
+    ("ALA", "N"): "N",
+    ("ALA", "CA"): "CH1",
+    ("ALA", "CB"): "CH3",
+    ("ALA", "C"): "C",
+    ("ALA", "O"): "O",
+    #
+    ("ARG", "N"): "N",
+    ("ARG", "CA"): "CH1",
+    ("ARG", "CB"): "CH2",
+    ("ARG", "CG"): "CH2",
+    ("ARG", "CD"): "CH2",
+    ("ARG", "NE"): "NE",
+    ("ARG", "CZ"): "C",
+    ("ARG", "NH1"): "NZ",
+    ("ARG", "NH2"): "NZ",
+    ("ARG", "C"): "C",
+    ("ARG", "O"): "O",
+    #
+    ("ASN", "N"): "N",
+    ("ASN", "CA"): "CH1",
+    ("ASN", "CB"): "CH2",
+    ("ASN", "CG"): "C",
+    ("ASN", "OD1"): "O",
+    ("ASN", "ND2"): "NT",
+    ("ASN", "C"): "C",
+    ("ASN", "O"): "O",
+    #
+    ("ASP", "N"): "N",
+    ("ASP", "CA"): "CH1",
+    ("ASP", "CB"): "CH2",
+    ("ASP", "CG"): "C",
+    ("ASP", "OD1"): "OM",
+    ("ASP", "OD2"): "OM",
+    ("ASP", "C"): "C",
+    ("ASP", "O"): "O",
+    #
+    ("CYS", "N"): "N",
+    ("CYS", "CA"): "CH1",
+    ("CYS", "CB"): "CH2",
+    ("CYS", "SG"): "S",
+    ("CYS", "C"): "C",
+    ("CYS", "O"): "O",
+    #
+    ("GLN", "N"): "N",
+    ("GLN", "CA"): "CH1",
+    ("GLN", "CB"): "CH2",
+    ("GLN", "CG"): "CH2",
+    ("GLN", "CD"): "C",
+    ("GLN", "OE1"): "O",
+    ("GLN", "NE2"): "NT",
+    ("GLN", "C"): "C",
+    ("GLN", "O"): "O",
+    #
+    ("GLU", "N"): "N",
+    ("GLU", "CA"): "CH1",
+    ("GLU", "CB"): "CH2",
+    ("GLU", "CG"): "CH2",
+    ("GLU", "CD"): "C",
+    ("GLU", "OE1"): "OM",
+    ("GLU", "OE2"): "OM",
+    ("GLU", "C"): "C",
+    ("GLU", "O"): "O",
+    #
+    ("GLY", "N"): "N",
+    ("GLY", "CA"): "CH2",
+    ("GLY", "C"): "C",
+    ("GLY", "O"): "O",
+    #
+    ("HIS", "N"): "N",
+    ("HIS", "CA"): "CH1",
+    ("HIS", "CB"): "CH2",
+    ("HIS", "CG"): "C",
+    ("HIS", "ND1"): "NR",
+    ("HIS", "CD2"): "C",
+    ("HIS", "CE1"): "C",
+    ("HIS", "NE2"): "NR",
+    ("HIS", "C"): "C",
+    ("HIS", "O"): "O",
+    #
+    ("ILE", "N"): "N",
+    ("ILE", "CA"): "CH1",
+    ("ILE", "CB"): "CH1",
+    ("ILE", "CG1"): "CH2",
+    ("ILE", "CG2"): "CH3",
+    ("ILE", "CD"): "CH3",
+    ("ILE", "CD1"): "CH3",  # backup name variant
+    ("ILE", "C"): "C",
+    ("ILE", "O"): "O",
+    #
+    ("LEU", "N"): "N",
+    ("LEU", "CA"): "CH1",
+    ("LEU", "CB"): "CH2",
+    ("LEU", "CG"): "CH1",
+    ("LEU", "CD1"): "CH3",
+    ("LEU", "CD2"): "CH3",
+    ("LEU", "C"): "C",
+    ("LEU", "O"): "O",
+    #
+    ("LYS", "N"): "N",
+    ("LYS", "CA"): "CH1",
+    ("LYS", "CB"): "CH2",
+    ("LYS", "CG"): "CH2",
+    ("LYS", "CD"): "CH2",
+    ("LYS", "CE"): "CH2",
+    ("LYS", "NZ"): "NT",
+    ("LYS", "C"): "C",
+    ("LYS", "O"): "O",
+    #
+    ("MET", "N"): "N",
+    ("MET", "CA"): "CH1",
+    ("MET", "CB"): "CH2",
+    ("MET", "CG"): "CH2",
+    ("MET", "SD"): "S",
+    ("MET", "CE"): "CH3",
+    ("MET", "C"): "C",
+    ("MET", "O"): "O",
+    #
+    ("PHE", "N"): "N",
+    ("PHE", "CA"): "CH1",
+    ("PHE", "CB"): "CH2",
+    ("PHE", "CG"): "C",
+    ("PHE", "CD1"): "C",
+    ("PHE", "CD2"): "C",
+    ("PHE", "CE1"): "C",
+    ("PHE", "CE2"): "C",
+    ("PHE", "CZ"): "C",
+    ("PHE", "C"): "C",
+    ("PHE", "O"): "O",
+    #
+    ("PRO", "N"): "N",
+    ("PRO", "CA"): "CH1",
+    ("PRO", "CB"): "CH2",  # originally CH2r
+    ("PRO", "CG"): "CH2",  # originally CH2r
+    ("PRO", "CD"): "CH2",  # originally CH2r
+    ("PRO", "C"): "C",
+    ("PRO", "O"): "O",
+    #
+    ("SER", "N"): "N",
+    ("SER", "CA"): "CH1",
+    ("SER", "CB"): "CH2",
+    ("SER", "OG"): "OA",
+    ("SER", "C"): "C",
+    ("SER", "O"): "O",
+    #
+    ("THR", "N"): "N",
+    ("THR", "CA"): "CH1",
+    ("THR", "CB"): "CH2",
+    ("THR", "OG1"): "OA",
+    ("THR", "CG2"): "CH3",
+    ("THR", "C"): "C",
+    ("THR", "O"): "O",
+    #
+    ("TRP", "N"): "N",
+    ("TRP", "CA"): "CH1",
+    ("TRP", "CB"): "CH2",
+    ("TRP", "CG"): "C",
+    ("TRP", "CD1"): "C",
+    ("TRP", "CD2"): "C",
+    ("TRP", "NE1"): "NR",
+    ("TRP", "CE2"): "C",
+    ("TRP", "CE3"): "C",
+    ("TRP", "CZ2"): "C",
+    ("TRP", "CZ3"): "C",
+    ("TRP", "CH2"): "C",
+    ("TRP", "C"): "C",
+    ("TRP", "O"): "O",
+    #
+    ("TYR", "N"): "N",
+    ("TYR", "CA"): "CH1",
+    ("TYR", "CB"): "CH2",
+    ("TYR", "CG"): "C",
+    ("TYR", "CD1"): "C",
+    ("TYR", "CD2"): "C",
+    ("TYR", "CE1"): "C",
+    ("TYR", "CE2"): "C",
+    ("TYR", "CZ"): "C",
+    ("TYR", "OH"): "OA",
+    ("TYR", "C"): "C",
+    ("TYR", "O"): "O",
+    #
+    ("VAL", "N"): "N",
+    ("VAL", "CA"): "CH1",
+    ("VAL", "CB"): "CH2",
+    ("VAL", "CG1"): "CH3",
+    ("VAL", "CG2"): "CH3",
+    ("VAL", "C"): "C",
+    ("VAL", "O"): "O",
+    #
+    ("ACE", "CH3"): "CH3",
+    ("ACE", "C"): "C",
+    ("ACE", "O"): "O",
+    #
+    ("NME", "N"): "N",
+    ("NME", "C"): "CH3",
+}
+
+
+def import_retry(name, maxtry=50):
+
+    for i in range(maxtry):
+        try:
+            import name
+            break
+        except ImportError:
+            pass
+
+def choose_artypes(arg):
+
+    if arg == 'default':
+        atypes_ = atypes.values()
+        rtypes = atypes
+    elif arg == 'gromos':
+        atypes_ = gromos_types.values()
+        rtypes = gromos_types
+    elif arg == 'vina':
+        atypes_ = vina_types
+        rtypes = vina_tupes
+
+    return (atypes_, rtypes)

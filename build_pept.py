@@ -8,7 +8,71 @@ import Bio.Alphabet
 import Bio.Alphabet.IUPAC
 import os
 
-os.environ['CHEMPY_DATA'] = '/usr/share/pymol/data/chempy'
+
+class PepBuilder(object):
+
+    def __init__(self):
+
+        self.pymol = self.init_pymol()
+
+    def gen_pept(
+            self,
+            seq,
+            out=None,
+            caps=False,
+            kmers=None,
+            ncap='ace',
+            ccap='nme',
+            *args,
+            **kwargs):
+
+        self.pymol.cmd.set('pdb_use_ter_records', 0)
+
+        L = len(seq)
+
+        if kmers:
+            l = kmers
+        else:
+            l = len(seq)
+
+        for i in range(L - l + 1):
+            tseq = seq[i:i + l]
+            print(tseq)
+            if caps:
+                self.pymol.cmd.editor.attach_amino_acid('pk1', ncap)
+
+            for a in tseq:
+                self.pymol.cmd.editor.attach_amino_acid('pk1', ott(a).lower())
+
+            if caps:
+                self.pymol.cmd.editor.attach_amino_acid('pk1', ccap)
+
+            if not out:
+                out = '%s.pdb' % seq
+
+            if kmers:
+                oname = '%s_%s.pdb' % (out[:-4], tseq.upper())
+            else:
+                oname = out
+            self.pymol.cmd.save(oname, 'all')
+            self.pymol.cmd.delete('all')
+
+    def init_pymol(self):
+        os.environ['CHEMPY_DATA'] = '/usr/share/pymol/data/chempy'
+        import __main__
+        __main__.pymol_argv = ['pymol', '-qc']
+        import pymol
+        pymol.finish_launching()
+        return pymol
+
+
+def check_pept(seq):
+    tseq = Seq(seq, Bio.Alphabet.IUPAC.protein)
+    if Bio.Alphabet._verify_alphabet(tseq):
+        return seq
+    else:
+        msg = "%s is not a valid peptide sequence" % tseq
+        raise ag.ArgumentTypeError(msg)
 
 
 def get_args():
@@ -65,68 +129,10 @@ def get_args():
     return args_dict
 
 
-def check_pept(seq):
-    tseq = Seq(seq, Bio.Alphabet.IUPAC.protein)
-    if Bio.Alphabet._verify_alphabet(tseq):
-        return seq
-    else:
-        msg = "%s is not a valid peptide sequence" % tseq
-        raise ag.ArgumentTypeError(msg)
-
-
-def init_pymol():
-    import __main__
-    __main__.pymol_argv = ['pymol', '-qc']
-    import pymol
-    pymol.finish_launching()
-    return pymol
-
-
-def gen_pept(
-        seq,
-        out=None,
-        caps=False,
-        kmers=None,
-        ncap=None,
-        ccap=None,
-        *args,
-        **kwargs):
-
-    pymol = init_pymol()
-    pymol.cmd.set('pdb_use_ter_records', 0)
-
-    L = len(seq)
-
-    if kmers:
-        l = kmers
-    else:
-        l = len(seq)
-
-    for i in range(L - l + 1):
-        tseq = seq[i:i + l]
-        print(tseq)
-        if caps:
-            pymol.cmd.editor.attach_amino_acid('pk1', ncap)
-
-        for a in tseq:
-            pymol.cmd.editor.attach_amino_acid('pk1', ott(a).lower())
-
-        if caps:
-            pymol.cmd.editor.attach_amino_acid('pk1', ccap)
-
-        if not out:
-            out = '%s.pdb' % seq
-
-        if kmers:
-            oname = '%s_%s.pdb' % (out[:-4], tseq.upper())
-        else:
-            oname = out
-        pymol.cmd.save(oname, 'all')
-        pymol.cmd.delete('all')
-
 if __name__ == '__main__':
     args = get_args()
     try:
-        gen_pept(**args)
+        builder = PepBuilder()
+        builder.gen_pept(**args)
     except:
         print('ERROR %s' % args['seq'])

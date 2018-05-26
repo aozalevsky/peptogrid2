@@ -72,7 +72,7 @@ def load_grid(fname, prefix='aa', ramp='jet'):
     origin = F['origin'][()]
 
     NUCS = set(F.keys())
-    protected = set(['origin', 'step'])
+    protected = set(['origin', 'step', 'atypes'])
     NUCS -= protected
 
     for i in NUCS:
