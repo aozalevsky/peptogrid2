@@ -55,33 +55,47 @@ rank = comm.rank
 
 Sfn = None
 model_list = None
-excl = None
-incl = None
-
+atypes = None
 
 if rank == 0:
 
     args = gu.get_args()
     Sfn = args['Sfn']
     model_list = args['pdb_list']
+    m_ = oddt.ob.readfile('pdbqt', model_list[0])
+    atypes_ = list()
+    for s in m_:
+        for a in s.atom_dict:
+            atypes_.append(a[5])
+
+    atypes_ = set(atypes_)
+    atypes_.remove('H')  # we do not need hydrogens!
+    atypes = atypes_
+
+
     excl = args['excl']
     incl = args['incl']
 
     if excl:
         excl = set(excl)
+        atypes = atypes - excl
 
     if incl:
         incl = set(incl)
+        atypes.intersection_update(incl)
+        atypes = atypes
 
     if excl and incl:
         raise('You can not use include and exclude options simultaneiously!')
 
+    print excl, incl, atypes
+
 
 Sfn = comm.bcast(Sfn)
 model_list = comm.bcast(model_list)
+atypes = comm.bcast(atypes)
 lm = len(model_list)
-excl = comm.bcast(excl)
-incl = comm.bcast(incl)
+
 
 # Init storage for matrices
 # Get file name
@@ -117,21 +131,8 @@ gNUCS = dict()
 for i in NUCS:
     gNUCS[i] = Sf[i][:]
 
-atypes = set(gu.vina_types)
-
-if excl:
-    atypes = atypes - excl
-
-if incl:
-    atypes.intersection_update(incl)
-
-print excl, incl, atypes
 
 cm = rank
-
-#phosphate = ['N', 'CA', 'C', 'O']
-#phs = 'name ' + ' '.join(phosphate)
-#base = 'not ' + phs
 
 t0 = time.time()
 c = 0
