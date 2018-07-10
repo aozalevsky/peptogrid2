@@ -18,6 +18,8 @@ import h5py
 # from h5py import h5s
 import oddt
 
+prody.confProDy(verbosity='error')
+
 
 class ConfigLedock(object):
 
@@ -242,6 +244,7 @@ class PepDocker(object):
             out = 'out.hdf5'
 
         self.out = self.allocate_resfile(out, overwrite)
+        self.out.flush()
         self.outfn = out
 
         # if not checkpoint:
@@ -371,7 +374,6 @@ class PepDocker(object):
             r_[:] = pres.getCoords()
             r_.attrs['score'] = e
 
-        self.out.flush()
 
     def split_result(self, lines):
         r = list()
@@ -436,8 +438,17 @@ class PepDocker(object):
         for i in range(N):
             s_ = self.aplist[i]
             self.run_once(s_)
+
+            #if self.mpi.rank == 0:
+            #    self.out.flush()
+
             self.checkpoint[self.eplist[s_]] = 1
             print('Step %d of %d' % (i + 1, N))
+
+        #if self.mpi.rank == 0:
+        #    while (np.self.checkpoint[:] < 1).any():
+        #        time.sleep(60)
+        #        self.out.flush()
 
         self.clean_files()
 
@@ -447,7 +458,11 @@ class PepDocker(object):
     def read_plist(self, fname):
         with open(fname, 'r') as f:
             raw = f.readlines()
-        plist = map(str.strip, raw)
+        plist = list()
+        for l in raw:
+            l_ = l.strip()
+            if l_ != '':
+                plist.append(l_)
         return np.array(plist, dtype='S%d' % len(plist[0]))
 
 
