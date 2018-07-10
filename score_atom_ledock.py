@@ -77,7 +77,8 @@ def process(args):
     # Init storage for matrices
     # Get file name
 
-    tSfn = 'tmp.' + Sfn
+    # tSfn = 'tmp.' + Sfn
+    tSfn = args['output']
     tSf = h5py.File(tSfn, 'w')
     score = tSf.create_dataset('score', (lM * 20,), dtype=np.float)
 
@@ -160,7 +161,7 @@ def process(args):
 
     tSf.close()
     Sf.close()
-    os.remove(tSfn)
+#    os.remove(tSfn)
 
 
 def get_args():
