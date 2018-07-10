@@ -4,16 +4,11 @@ import dock_pept
 
 import argparse as ag
 import os
-import util
 
 import prody
 
-# MPI parallelism
-from mpi4py import MPI
-
 # H5PY for storage
 import h5py
-from h5py import h5s
 
 
 class PepExtractor(object):
@@ -45,8 +40,8 @@ class PepExtractor(object):
         else:
             self.plist = self.database.keys()
 
-        for i in self.plist:
-            util.check_pept(i)
+        # for i in self.plist:
+        #    util.check_pept(i)
 
         if not out:
             out = ''
@@ -66,11 +61,22 @@ class PepExtractor(object):
 
         for i in range(N):
             s = self.plist[i]
-            r = self.extract_result(s)
-            if self.out:
-                fname = self.out + '_' + s + '.pdb'
+
+            n = s
+
+            if '_' in s:
+                s_ = s.split('_')
+                p_ = s_[0]
+                c_ = s_[1].split('.')[0]
+                r = self.extract_result(p_)
+                n = p_ + '_' + c_
             else:
-                fname = s + '.pdb'
+                r = self.extract_result(s)
+
+            if self.out:
+                fname = self.out + '_' + n + '.pdb'
+            else:
+                fname = n + '.pdb'
 
             self.write_result(r, fname)
 
