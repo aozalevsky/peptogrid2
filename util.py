@@ -177,6 +177,58 @@ avdw = {
     'S': 1.8,
 }
 
+avdw_ua = {
+    'H': 2.3,
+    'C': 3.0,
+    'N': 2.8,
+    'O': 2.6,
+    'P': 2.9,
+    'S': 2.9,
+}
+
+atomschgd = [
+    'NH2',
+    'NH1',
+    'NE',
+    'NZ',
+    'NE2',
+    'ND2',
+]
+
+atomsl = {
+    'OE2': 'X',
+    'OE1': 'X',   # Glutamate
+    'OD1': 'X',
+    'OD2': 'X',   # Aspartate
+    'O': 'X',    # Peptide bond
+    'OG': 'X',   # Serine
+    'OG1': 'X',  # Threonine
+    'OH': 'X',   # Tyrosine
+    'SG': 'X',   # Cysteine
+    'NE2': 'HIS',  # Histidine, Glutamine
+    'ND1': 'X',  # Histidine
+    # 'ND2',  # Asparagine
+    # 'NE',   # Arginine
+    'OP1': 'X',
+    'OP2': 'X',  # Phosphate
+}
+
+atomsdir = {
+    'OE1': 'CD',
+    'OE2': 'CD',
+    'OD1': 'CG',
+    'OD2': 'CG',
+    'O': 'C',
+    'OG': 'CB',
+    'OG1': 'CB',
+    'SG': 'CB',
+    'OH': 'CZ',
+    'NE2': {'HIS': 'CE1', 'GLN': 'CD'},
+    'ND1': 'CE1',
+    'OP1': 'P',
+    'OP2': 'P',
+}
+
 
 # http://stackoverflow.com/questions/2819696/parsing-properties-file-in-python/2819788#2819788
 
@@ -216,6 +268,7 @@ def get_box_from_vina(f):
                    dtype=np.float)
 
     return (center, box)
+
 
 atypes = {
     ("ALA", "CA"): "CA_BCK",
@@ -561,6 +614,7 @@ def get_args_box():
 
     return args_dict
 
+
 vina_types = (
     'C.2',
     'C.3',
@@ -606,9 +660,11 @@ def init_mpi():
 
 
 def task(N, mpi):
-    l = np.floor(float(N) / mpi.NPROCS).astype(np.int)
+    l = np.ceil(float(N) / mpi.NPROCS).astype(np.int)
     b = mpi.rank * l
-    return (b, b + l)
+    e = min(b + l, N)
+
+    return (b, e)
 
 
 gromos_types = {
@@ -813,10 +869,12 @@ def import_retry(name, maxtry=50):
 
     for i in range(maxtry):
         try:
-            import name
+            pass
+            # import name
             break
         except ImportError:
             pass
+
 
 def choose_artypes(arg):
 
@@ -828,6 +886,6 @@ def choose_artypes(arg):
         rtypes = gromos_types
     elif arg == 'vina':
         atypes_ = vina_types
-        rtypes = vina_tupes
+        rtypes = vina_types
 
     return (atypes_, rtypes)
