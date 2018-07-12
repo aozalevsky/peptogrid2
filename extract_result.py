@@ -68,7 +68,7 @@ class PepExtractor(object):
                 s_ = s.split('_')
                 p_ = s_[0]
                 c_ = s_[1].split('.')[0]
-                r = self.extract_result(p_)
+                r = self.extract_result(p_, int(c_))
                 n = p_ + '_' + c_
             else:
                 r = self.extract_result(s)
@@ -87,13 +87,18 @@ class PepExtractor(object):
             r = self.extract_result(s)
             yield r
 
-    def extract_result(self, seq):
+    def extract_result(self, seq, coordset=None):
         t = self.database[seq]
         t.delCoordset(0)
         g = self.resfile[seq]
 
-        for i in range(len(g.keys())):
-            t.addCoordset(g['%d' % i][:])
+        if coordset:
+            t.addCoordset(g['%d' % coordset][:])
+
+        else:
+
+            for i in range(len(g.keys())):
+                t.addCoordset(g['%d' % i][:])
 
         return t
 
