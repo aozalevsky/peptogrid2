@@ -1,9 +1,10 @@
-#!/usr/bin/python
+#!/usr/bin/env python2
 
 import argparse as ag
 import re
 import os
-import pickle
+# import pickle
+from sqlitedict import SqliteDict
 import StringIO
 import subprocess as sp
 import util
@@ -167,13 +168,15 @@ class PepDatabase(object):
     def __init__(self, fname):
         if fname:
             try:
-                with open(fname, 'rb') as f:
-                    db_ = pickle.load(f)
+                # with open(fname, 'rb') as f:
+                #     db_ = pickle.load(f)
+                db_ = SqliteDict(fname)
 
-                self.fname = fname
-                self.database = db_
             except:
                 raise Exception('Something wrong with peptide databse')
+
+            self.fname = fname
+            self.database = db_
         else:
             raise Exception('Missing peptide database')
         pass
@@ -374,7 +377,6 @@ class PepDocker(object):
             r_[:] = pres.getCoords()
             r_.attrs['score'] = e
 
-
     def split_result(self, lines):
         r = list()
         N = len(lines)
@@ -432,6 +434,7 @@ class PepDocker(object):
         self.config.write()
 
     def dock(self):
+        print('Starting docking!')
 
         N = len(self.aplist)
 
@@ -439,16 +442,8 @@ class PepDocker(object):
             s_ = self.aplist[i]
             self.run_once(s_)
 
-            #if self.mpi.rank == 0:
-            #    self.out.flush()
-
             self.checkpoint[self.eplist[s_]] = 1
             print('Step %d of %d' % (i + 1, N))
-
-        #if self.mpi.rank == 0:
-        #    while (np.self.checkpoint[:] < 1).any():
-        #        time.sleep(60)
-        #        self.out.flush()
 
         self.clean_files()
 
