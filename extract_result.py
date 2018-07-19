@@ -68,7 +68,7 @@ class PepExtractor(object):
                 s_ = s.split('_')
                 p_ = s_[0]
                 c_ = s_[1].split('.')[0]
-                r = self.extract_result(p_, int(c_))
+                r = self.extract_result(p_, int(c_) - 1)
                 n = p_ + '_' + c_
             else:
                 r = self.extract_result(s)
