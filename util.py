@@ -889,3 +889,21 @@ def choose_artypes(arg):
         rtypes = vina_types
 
     return (atypes_, rtypes)
+
+
+def read_plist(fname):
+    with open(fname, 'r') as f:
+        raw = f.readlines()
+    plist = list()
+    for l in raw:
+        l_ = l.strip()
+        if l_ == '':
+            continue
+        if '_' in l_:
+            l__ = l_.split('_')
+            l_ = l__[0]
+        plist.append(l_)
+
+    plist = list(set(plist))
+
+    return np.array(plist, dtype='S%d' % len(plist[0]))
