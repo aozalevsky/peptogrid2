@@ -17,41 +17,8 @@ from mpi4py import MPI
 
 np.set_printoptions(threshold='nan')
 
-# import gromacs
-# import gromacs.formats
-# import mdtraj
-# import sklearn.preprocessing
-
-# In[11]:
-
-
-# FN = sys.argv[1]
-# FRAME = int(sys.argv[2])
-# TOP = sys.argv[3]
-
-# In[12]:
-
-
 natoms = ('OP1', 'OP2', 'O1P', 'O2P', 'N4', 'N6', 'O4',
           'O6', 'N7', 'N2', 'N3', 'O2', "O3'", "O5'", "O2'", "O4'",)
-
-# In[15]:
-# proth = gromacs.formats.XVG('prot_hbdist.xvg')
-# rawdata = proth.array
-
-# bins = rawdata[0] * 10.0
-
-# mmscaler = sklearn.preprocessing.MinMaxScaler()
-
-# dat = mmscaler.fit_transform(rawdata[1])
-
-
-# start = bins[0]
-# stop = bins[-1]
-# step = 0.2
-
-# padding = stop - start + step
-
 
 def get_bounding(R, padding, step):
     minXYZ = np.amin(R, axis=0)
