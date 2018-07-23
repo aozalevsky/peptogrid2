@@ -27,6 +27,7 @@ class PepExtractor(object):
         out=None,
         overwrite=False,
         cleanup=True,
+        mpi=None,
         *args,
         **kwargs
             ):
@@ -49,10 +50,13 @@ class PepExtractor(object):
 
         self.resfilefn = resfile
 
-        try:
-            self.resfile = h5py.File(self.resfilefn, 'r+', driver='sec2')
-        except IOError:
-            raise Exception("Can't open result file")
+#        try:
+        if mpi:
+            self.resfile = h5py.File(self.resfilefn, 'r', driver='mpio', comm=mpi.comm)
+        else:
+            self.resfile = h5py.File(self.resfilefn, 'r', driver='sec2')
+#        except IOError:
+#            raise Exception("Can't open result file")
 
         self.overwrite = overwrite
 
