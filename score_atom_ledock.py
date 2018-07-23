@@ -80,7 +80,14 @@ def process(args):
     # tSfn = 'tmp.' + Sfn
     tSfn = args['output']
     tSf = h5py.File(tSfn, 'w')
-    score = tSf.create_dataset('score', (lM * 20,), dtype=np.float)
+
+    # fix of pos number // zlo 
+
+    pivot_pept_ = extractor.plist[0]
+    pivot_pept = extractor.extract_result(pivot_pept_)
+    num_poses = pivot_pept.numCoordsets()
+
+    score = tSf.create_dataset('score', (lM * num_poses,), dtype=np.float)
 
     GminXYZ = Sf['origin'][:]
     step = Sf['step'][0]
