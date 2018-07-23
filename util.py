@@ -14,6 +14,7 @@ import Bio.Alphabet.IUPAC
 
 # MPI parallelism
 from mpi4py import MPI
+import h5py
 
 np.set_printoptions(threshold='nan')
 
@@ -874,3 +875,8 @@ def read_plist(fname):
     plist = list(set(plist))
 
     return np.array(plist, dtype='S%d' % len(plist[0]))
+
+
+def reset_checkpoint(fn):
+    with h5py.File(fn, 'r+') as f:
+        f['checkpoint'][:] = np.zeros(f['checkpoint'].shape)
