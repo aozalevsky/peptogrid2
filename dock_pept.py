@@ -232,7 +232,7 @@ class PepDocker(object):
         plist_ = None
         if self.mpi.rank == 0:
             if plist:
-                plist_ = self.read_plist(plist)
+                plist_ = util.read_plist(plist)
             else:
                 plist_ = self.database.keys()
 
@@ -449,16 +449,6 @@ class PepDocker(object):
 
     def clean_files(self):
         self.out.close()
-
-    def read_plist(self, fname):
-        with open(fname, 'r') as f:
-            raw = f.readlines()
-        plist = list()
-        for l in raw:
-            l_ = l.strip()
-            if l_ != '':
-                plist.append(l_)
-        return np.array(plist, dtype='S%d' % len(plist[0]))
 
 
 def get_args():
