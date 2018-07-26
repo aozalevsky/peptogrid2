@@ -194,6 +194,8 @@ class PepDocker(object):
     plist = None
     llist = None
     mpi = None
+    tmpdir = '/tmp'
+    reset = None
 
     def __init__(
         self,
@@ -207,6 +209,8 @@ class PepDocker(object):
         out=None,
         overwrite=False,
         cleanup=True,
+        tmpdir=None,
+        reset=False,
     ):
 
         self.cleanup = cleanup
@@ -225,7 +229,8 @@ class PepDocker(object):
             raise Exception('Missing Docker config!')
 
         if receptor:
-            self.set_receptor(receptor)
+            receptor_ = os.path.abspath(receptor)
+            self.set_receptor(receptor_)
         else:
             raise Exception('Missing receptor file')
 
@@ -242,11 +247,12 @@ class PepDocker(object):
         self.plist = self.mpi.comm.bcast(plist_)
 
         self.overwrite = overwrite
+        self.reset = reset
 
         if not out:
             out = 'out.hdf5'
 
-        self.out = self.allocate_resfile(out, overwrite)
+        self.out = self.allocate_resfile(out, overwrite, reset)
         self.out.flush()
         self.outfn = out
 
@@ -282,6 +288,9 @@ class PepDocker(object):
                 'RANK: %d NOTHING TO DO' % (
                     self.mpi.rank))
 
+        if tmpdir:
+            self.tmpdir = tmpdir
+
     def run_once(self, seq):
 
         self.prepare_files(seq)
@@ -291,7 +300,7 @@ class PepDocker(object):
 
         return r
 
-    def allocate_resfile(self, fname, overwrite=False):
+    def allocate_resfile(self, fname, overwrite=False, reset=False):
 
         def open_append(fname, comm):
             if comm:
@@ -321,17 +330,22 @@ class PepDocker(object):
         else:
             out = open_new(fname, self.mpi.comm)
 
-        if 'plist' not in out:
+        out_ = out.keys()
+
+        if 'plist' not in out_:
             out.create_dataset('plist', data=self.plist)
 
-        if 'checkpoint' not in out:
+        if 'checkpoint' not in out_:
             out.create_dataset(
                 'checkpoint',
                 data=np.zeros(len(self.plist)),
                 dtype=np.int8)
 
+        if reset:
+            out['checkpoint'][:] = np.zeros(out['checkpoint'].shape)
+
         for s in self.plist:
-            if s not in out:
+            if s not in out_:
                 G = out.create_group(s)
                 for i in range(
                     int(
@@ -438,6 +452,8 @@ class PepDocker(object):
 
         N = len(self.aplist)
 
+        os.chdir(self.tmpdir)
+
         for i in range(N):
             s_ = self.aplist[i]
             self.run_once(s_)
@@ -448,6 +464,7 @@ class PepDocker(object):
         self.clean_files()
 
     def clean_files(self):
+        self.database.close()
         self.out.close()
 
 
@@ -509,6 +526,11 @@ def get_args():
                         action='store_true',
                         dest='overwrite',
                         help='overwrite previos results')
+
+    parser.add_argument('--reset',
+                        action='store_true',
+                        dest='reset',
+                        help='Reset output checkpoint')
 
     parser.add_argument('-v', '--verbose',
                         action='store_true',
