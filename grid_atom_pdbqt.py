@@ -34,7 +34,7 @@ import oddt
 import sys
 import pyximport
 pyximport.install()
-import lvc
+import affbio.lvc
 
 sys.path.append('/home/domain/silwer/work/')
 import grid_scripts.util as gu
