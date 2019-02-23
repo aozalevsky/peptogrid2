@@ -8,6 +8,8 @@ from sqlitedict import SqliteDict
 import StringIO
 import subprocess as sp
 import util
+import tempfile
+import shutil
 
 import prody
 from collections import OrderedDict as OD
@@ -22,7 +24,67 @@ import oddt
 prody.confProDy(verbosity='error')
 
 
-class ConfigLedock(object):
+class Config(object):
+
+    fname = None
+    config = None
+    numposes = None
+    box = None
+
+    def __init__(self, fname=None):
+        if fname:
+            self.parse_config(fname)
+            self.is_valid()
+            self.fname = fname
+        else:
+            pass
+
+    def get_box_size(self):
+
+        box_size = self.box[:, 1] - self.box[:, 0]
+
+        return box_size
+
+    def set_box_size(self, size):
+        if type(size) == np.ndarray and size.shape == (3,):
+            size_ = size
+
+        elif type(size) == int and size > 0:
+            size_ = np.ndarray((3,), dtype=np.float)
+            size_.fill(size)
+
+        else:
+            raise Exception("Wrong box size")
+
+        box_ = np.stack(
+            (self.box[:, 0], self.box[:, 0] + size_),
+            axis=-1
+            )
+        self.set_box(box_)
+
+    def get_vina_style_center_box(self):
+        pass
+
+    def get_min_xyz(self):
+        return self.box[:, 0]
+
+    def get_box(self):
+        return self.box
+
+    def set_box(self, box):
+        if type(box) == np.ndarray and box.shape == (3, 2):
+            pass
+        else:
+            raise Exception("Wrong box")
+
+        self.box = box
+        self._update_box()
+
+    def _update_box(self):
+        pass
+
+
+class ConfigLedock(Config):
 
     csize = OD([
         ('Receptor', 1),
@@ -32,17 +94,6 @@ class ConfigLedock(object):
         ('Ligands list', 1),
         ('END', 0)
     ])
-
-    fname = None
-    config = None
-
-    def __init__(self, fname=None):
-        if fname:
-            self.parse_config(fname)
-            self.is_valid()
-            self.fname = fname
-        else:
-            pass
 
     def parse_config(self, fname):
 
@@ -74,6 +125,8 @@ class ConfigLedock(object):
         self.is_valid(config)
 
         self.config = config
+
+        self.numposes = int(self.config['Number of binding poses'][0])
 
         self.box = np.array(
             map(lambda x: x.split(), self.config['Binding pocket']),
@@ -112,52 +165,113 @@ class ConfigLedock(object):
         with open(fname, 'w') as f:
             f.write(c_)
 
-    def get_vina_style_center_box(self):
-        pass
-
-    def get_min_xyz(self):
-        return self.box[:, 0]
-
-    def get_box(self):
-        return self.box
-
-    def set_box(self, box):
-        if type(box) == np.ndarray and box.shape == (3, 2):
-            pass
-        else:
-            raise Exception("Wrong box")
-
-        self.box = box
-        self._update_box()
-
     def _update_box(self):
 
         self.config['Binding pocket'] = '\n'.join(
             map(lambda x: str(x[0]) + ' ' + str(x[1]), self.box)
             )
 
-    def get_box_size(self):
 
-        box_size = self.box[:, 1] - self.box[:, 0]
+class ConfigPlants(Config):
 
-        return box_size
+    default = OD([
+        ('scoring_function', 'chemplp'),
+        ('search_speed', 'speed1'),
+        ('protein_file', 'pro.mol2'),
+        ('ligand_list', 'ligands_list'),
+        ('output_dir', 'results'),
+        ('write_multi_mol2', '0'),
+        ('bindingsite_center', None),
+        ('bindingsite_radius', None),
+        ('cluster_structures', 20),
+        ('cluster_rmsd', 1.0)
+        ])
 
-    def set_box_size(self, size):
-        if type(size) == np.ndarray and size.shape == (3,):
-            size_ = size
+    csize = OD([
+        ('scoring_function', 1),
+        ('search_speed', 1),
+        ('protein_file', 1),
+        ('ligand_list', 1),
+        ('output_dir', 1),
+        ('write_multi_mol2', 1),
+        ('bindingsite_center', 3),
+        ('bindingsite_radius', 1),
+        ('cluster_structures', 1),
+        ('cluster_rmsd', 1)
+        ])
 
-        elif type(size) == int and size > 0:
-            size_ = np.ndarray((3,), dtype=np.float)
-            size_.fill(size)
+    def parse_config(self, fname):
 
-        else:
-            raise Exception("Wrong box size")
+        with open(fname, 'r') as f:
+            raw = f.readlines()
+        lines = map(str.strip, raw)
 
-        box_ = np.stack(
-            (self.box[:, 0], self.box[:, 0] + size_),
-            axis=-1
-            )
-        self.set_box(box_)
+        ckeys = self.csize.keys()
+
+        config = self.default.copy()
+
+        for l in lines:
+            l_ = l.strip()
+
+            if not l_:
+                continue
+
+            ls_ = l.split(' ')
+
+            k = ls_[0]
+
+            if k in ckeys:
+                config[k] = ' '.join(ls_[1:1 + self.csize[k]])
+
+        self.is_valid(config)
+
+        self.config = config
+
+        # Create box, which inscribes docking sphere
+
+        center = np.fromstring(config['bindingsite_center'], sep=' ')
+        r = np.float(config['bindingsite_radius'])
+
+        box = np.zeros((3, 2), dtype=np.float)
+        box[:, 0] = center - r
+        box[:, 1] = center + r
+
+        self.box = box
+
+        self.numposes = int(self.config['cluster_structures'])
+
+    def is_valid(self, config=None):
+        if config is None:
+            config = self.config
+        keys = self.default.keys()
+
+        for k in keys:
+
+            if k not in config:
+                raise Exception('Missing "%s" in config' % k)
+
+            if config[k] is None:
+                raise Exception('Wrong parameters for "%s"' % k)
+
+        return True
+
+    def write(self, fname=None):
+        if fname is None:
+            fname = self.fname
+
+        c_ = ''
+
+        for i in self.config.items():
+            k, v = i
+            c_ += '%s %s\n' % (k, str(v))
+
+        with open(fname, 'w') as f:
+            f.write(c_)
+
+    def _update_box(self):
+
+        r = (self.box[0, 1] - self.box[0, 0]) / 2.0
+        self.config['bindingsite_radius'] = '%.2f' % r
 
 
 class PepDatabase(object):
@@ -211,20 +325,22 @@ class PepDocker(object):
         cleanup=True,
         tmpdir=None,
         reset=False,
+        *args,
+        **kwargs
     ):
 
         self.cleanup = cleanup
         self.mpi = util.init_mpi()
 
         if docker:
-            self.docker = docker
+            self.docker = os.path.abspath(docker)
         else:
             raise Exception('Missing Docker software!')
 
         self.database = PepDatabase(database).database
 
         if config:
-            self.config = ConfigLedock(config)
+            self.config = self.load_config(config)
         else:
             raise Exception('Missing Docker config!')
 
@@ -256,18 +372,6 @@ class PepDocker(object):
         self.out.flush()
         self.outfn = out
 
-        # if not checkpoint:
-        #    checkpoint = 'checkpoint.cpt'
-
-        # self.checkpointfn = checkpoint
-
-        # if not os.path.isfile(checkpoint):
-        #    with open(checkpoint, 'a') as f:
-        #        pass
-
-        # self.from_checkpoint = self.read_plist(checkpoint)
-        # self.checkpoint = open(checkpoint, 'a')
-
         self.checkpoint = self.out['checkpoint']
 
         self.eplist = dict([(t[1], t[0]) for t in enumerate(self.plist)])
@@ -290,6 +394,12 @@ class PepDocker(object):
 
         if tmpdir:
             self.tmpdir = tmpdir
+
+    def set_receptor(self, receptor):
+        pass
+
+    def load_config(self, config):
+        pass
 
     def run_once(self, seq):
 
@@ -359,79 +469,61 @@ class PepDocker(object):
             for s in self.plist:
                 if s not in out_:
                     G = out.create_group(s)
-                    for i in range(
-                        int(
-                            self.config.config['Number of binding poses'][0])):
+                    for i in range(self.config.numposes):
                         dummyc = self.database[s].getCoords().shape
                         G.create_dataset('%d' % i, dummyc, dtype=np.float)
 
         return out
 
-    def read_result(self, seq):
-        fname = "%s.dok" % seq
-        with open(fname, 'r') as f:
-            raw = f.readlines()
-        res = self.split_result(raw)
-        pres = list()
-        for r in res:
-            e_ = self.get_energy(r)
-            r_ = prody.parsePDBStream(StringIO.StringIO(r))
-            pres.append((r_, e_))
-
-        if self.cleanup:
-            os.remove(fname)
-            os.remove("%s.mol2" % seq)
-            os.remove(self.llist_fname)
-            os.remove(self.config.fname)
-        return pres
-
-    def get_energy(self, r):
-        gg = re.findall(r'Score:\s+([-+]?\d+\.\d*)', r)
-        if gg:
-            e_ = float(gg[0])
-
-        try:
-            return e_
-        except:
-            raise Exception("Can't extract score value")
-
     def write_result(self, seq, allres):
         rG = self.out.require_group(seq)
         for i in range(len(allres)):
-            pres, e = allres[i]
+            coords, e = allres[i]
             r_ = rG["%d" % i]
-            r_[:] = pres.getCoords()
+            r_[:] = coords
             r_.attrs['score'] = e
-
-    def split_result(self, lines):
-        r = list()
-        N = len(lines)
-        i = 0
-        s_ = None
-        e_ = None
-        while i < N:
-
-            if re.match('REMARK', lines[i]) and s_ is None:
-                s_ = i
-            if re.match('END', lines[i]) and s_ is not None:
-                e_ = i
-                r.append(''.join(lines[s_: e_ + 1]))
-
-                s_ = None
-                e_ = None
-            i += 1
-
-        return r
 
     def run_docker(self):
         call = list()
         call.append(self.docker)
         call.append(self.config.fname)
         sp.check_call(call)
-        # os.system(' '.join(call))
-        # self.mpi.comm.Spawn(
-        #    self.docker,
-        #    args=[self.config_fname])
+
+    def write_config(self):
+        fname = '%d_config' % self.mpi.rank
+        self.config.fname = fname
+        self.config.write()
+
+    def dock(self):
+        print('Starting docking!')
+
+        N = len(self.aplist)
+
+        for i in range(N):
+            s_ = self.aplist[i]
+
+            tmpdir = tempfile.mkdtemp(dir=self.tmpdir)
+            os.chdir(tmpdir)
+
+            self.run_once(s_)
+
+            os.chdir(self.tmpdir)
+            shutil.rmtree(tmpdir)
+
+            self.checkpoint[self.eplist[s_]] = 1
+            print('Step %d of %d' % (i + 1, N))
+
+        self.clean_files()
+
+    def clean_files(self):
+        self.database.close()
+        self.out.close()
+
+
+class DockerLedock(PepDocker):
+
+    def load_config(self, config):
+        return ConfigLedock(config)
 
     def set_receptor(self, r):
         self.receptor = r
@@ -454,30 +546,118 @@ class PepDocker(object):
         with open(llist, 'w') as f:
             f.write('%s.mol2\n' % seq)
 
-    def write_config(self):
-        fname = '%d_config' % self.mpi.rank
-        self.config.fname = fname
-        self.config.write()
+    def read_result(self, seq):
+        fname = "%s.dok" % seq
+        with open(fname, 'r') as f:
+            raw = f.readlines()
+        res = self.split_result(raw)
+        pres = list()
+        for r in res:
+            e_ = self.get_energy(r)
+            r_ = prody.parsePDBStream(StringIO.StringIO(r))
+            c_ = r_.getCoords()
+            pres.append((c_, e_))
 
-    def dock(self):
-        print('Starting docking!')
+        if self.cleanup:
+            os.remove(fname)
+            os.remove("%s.mol2" % seq)
+            os.remove(self.llist_fname)
+            os.remove(self.config.fname)
+        return pres
 
-        N = len(self.aplist)
+    def split_result(self, lines):
+        r = list()
+        N = len(lines)
+        i = 0
+        s_ = None
+        e_ = None
+        while i < N:
 
-        os.chdir(self.tmpdir)
+            if re.match('REMARK', lines[i]) and s_ is None:
+                s_ = i
+            if re.match('END', lines[i]) and s_ is not None:
+                e_ = i
+                r.append(''.join(lines[s_: e_ + 1]))
 
-        for i in range(N):
-            s_ = self.aplist[i]
-            self.run_once(s_)
+                s_ = None
+                e_ = None
+            i += 1
 
-            self.checkpoint[self.eplist[s_]] = 1
-            print('Step %d of %d' % (i + 1, N))
+        return r
 
-        self.clean_files()
+    def get_energy(self, r):
+        gg = re.findall(r'Score:\s+([-+]?\d+\.\d*)', r)
+        if gg:
+            e_ = float(gg[0])
 
-    def clean_files(self):
-        self.database.close()
-        self.out.close()
+        try:
+            return e_
+        except:
+            raise Exception("Can't extract score value")
+
+
+class DockerPlants(PepDocker):
+
+    def load_config(self, config):
+        return ConfigPlants(config)
+
+    def set_receptor(self, r):
+        self.receptor = r
+        self.config.config['protein_file'] = r
+
+    def prepare_files(self, seq):
+
+        llist = 'ligand_list_%d.txt' % self.mpi.rank
+        self.config.config['ligand_list'] = llist
+        self.llist_fname = llist
+
+        self.write_config()
+
+        prody.writePDB(seq + '.pdb', self.database[seq])
+        mol = oddt.toolkit.readfile('pdb', seq + '.pdb').next()
+        os.remove(seq + '.pdb')
+
+        mol.title = seq
+        mol.write('mol2', seq + '.mol2', overwrite=True)
+
+        with open(llist, 'w') as f:
+            f.write('%s.mol2\n' % seq)
+
+    def read_result(self, seq):
+        fname_ = "%s/%s_entry_00001_conf_%02d.mol2"
+
+        pres = list()
+
+        efile = '%s/ranking.csv' % self.config.config['output_dir']
+        energy = np.loadtxt(efile, skiprows=1, usecols=[1], delimiter=',')
+
+        for i in range(self.config.numposes):
+
+            i_ = i + 1
+
+            fname = fname_ % (self.config.config['output_dir'], seq, i_)
+            mol = oddt.toolkit.readfile('mol2', fname).next()
+
+            e_ = energy[i]
+            c_ = mol.coords
+
+            pres.append((c_, e_))
+
+        if self.cleanup:
+            os.remove(fname)
+            os.remove("%s.mol2" % seq)
+            os.remove(self.llist_fname)
+            os.remove(self.config.fname)
+
+        return pres
+
+    def run_docker(self):
+        call = list()
+        call.append(self.docker)
+        call.append('--mode')
+        call.append('screen')
+        call.append(self.config.fname)
+        sp.check_call(call)
 
 
 def get_args():
@@ -485,6 +665,13 @@ def get_args():
 
     parser = ag.ArgumentParser(
         description='Dock peptides')
+
+    parser.add_argument('-b', '--backend',
+                        required=True,
+                        dest='backend',
+                        metavar='BACKEND',
+                        type=str,
+                        help='Software which will be used for docking')
 
     parser.add_argument('-r', '--receptor',
                         required=True,
@@ -555,5 +742,12 @@ def get_args():
 
 if __name__ == '__main__':
     args = get_args()
-    docker = PepDocker(**args)
+
+    b = args['backend']
+
+    if b == 'ledock':
+        docker = DockerLedock(**args)
+    elif b == 'plants':
+        docker = DockerPlants(**args)
+
     docker.dock()
