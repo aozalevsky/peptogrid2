@@ -23,6 +23,8 @@ class PepBuilder(object):
             kmers=None,
             ncap='ace',
             ccap='nme',
+            charged=True,
+            rpath=None,
             *args,
             **kwargs):
 
@@ -46,6 +48,43 @@ class PepBuilder(object):
 
             if caps:
                 self.pymol.cmd.editor.attach_amino_acid('pk1', ccap)
+
+            if not caps:
+                self.pymol.cmd.run(rpath)
+                self.pymol.cmd.do("renumber all, 1")
+
+                rn_ = {'rn': []}
+                self.pymol.cmd.iterate(
+                    "i. 1 and n. N",
+                    "rn.append(resn)",
+                    space=rn_)
+                rn = rn_['rn'][0]
+
+                hs = 2
+                if rn == 'PRO':
+                    hs = 1
+
+                self.pymol.cmd.select('pk1', 'i. 1 and name N')
+                self.pymol.cmd.attach('H', 3, 1)
+                self.pymol.cmd.alter('n. H01', 'elem="H"')
+                self.pymol.cmd.alter('n. H01', 'name="H%d"' % hs)
+
+                if charged:
+                    self.pymol.cmd.attach('H', 3, 1)
+                    self.pymol.cmd.alter('n. H01', 'elem="H"')
+                    self.pymol.cmd.alter('n. H01', 'name="H%d"' % (hs + 1))
+
+                self.pymol.cmd.select('pk1', 'i. %d and name C' % l)
+                self.pymol.cmd.attach('O', 1, 1)
+                self.pymol.cmd.alter('name O01', 'elem="O"')
+                self.pymol.cmd.alter('name O01', 'name="OXT"')
+
+                if charged:
+                    pass
+                else:
+                    self.pymol.cmd.select('pk1', 'i. %d and name OXT' % l)
+                    self.pymol.cmd.attach('H', 1, 1)
+                    self.pymol.cmd.alter('n. H01', 'name="HO"')
 
             if not out:
                 out = '%s.pdb' % seq
@@ -97,6 +136,11 @@ def get_args():
                         action='store_true',
                         help='Add ACE and NME caps at the ends of peptide')
 
+    parser.add_argument('-n', '--neutral',
+                        dest='charged',
+                        action='store_false',
+                        help='Make terminal residues neutral')
+
     parser.add_argument('-k', '--kmers',
                         type=int,
                         dest='kmers',
@@ -120,6 +164,14 @@ def get_args():
                         choices=['ace'],
                         help='Cap to be placed on the N term')
 
+    parser.add_argument('-r', '--renumber',
+                        type=str,
+                        dest='rpath',
+                        metavar='RENUMBER_PATH',
+                        required=True,
+                        help='Path to renumber script')
+
+
     parser.add_argument('-v', '--verbose',
                         action='store_true',
                         help='Be verbose')
@@ -131,8 +183,8 @@ def get_args():
 
 if __name__ == '__main__':
     args = get_args()
-    try:
-        builder = PepBuilder()
-        builder.gen_pept(**args)
-    except:
-        print('ERROR %s' % args['seq'])
+    # try:
+    builder = PepBuilder()
+    builder.gen_pept(**args)
+    # except:
+    #     print('ERROR %s' % args['seq'])
