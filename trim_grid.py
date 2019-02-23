@@ -58,12 +58,13 @@ SSfn = sys.argv[2]
 
 tSSf = h5py.File(tSSfn, 'r')
 GminXYZ = tSSf['origin'][:]
+atypes = tSSf['atypes'][:]
 step = tSSf['step'][0]
 
 SSf = h5py.File(SSfn, 'w')
 
 NUCS = set(tSSf.keys())
-protected = set(['origin', 'step'])
+protected = set(['origin', 'step', 'atypes'])
 NUCS -= protected
 
 SUBmin = list()
@@ -101,6 +102,7 @@ GminXYZ = GminXYZ + submin * step
 
 
 for i in NUCS:
+    print i
     tG = tSSf[i][
         submin[0]:submax[0],
         submin[1]:submax[1],
@@ -112,6 +114,7 @@ Gstep = np.array([step, step, step], dtype=np.float)
 
 SSf.create_dataset('step', data=Gstep)
 SSf.create_dataset('origin', data=GminXYZ)
+SSf.create_dataset('atypes', data=atypes)
 
 SSf.close()
 
