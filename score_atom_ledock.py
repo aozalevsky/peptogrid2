@@ -81,7 +81,7 @@ def process(args):
     tSfn = args['output']
     tSf = h5py.File(tSfn, 'w')
 
-    # fix of pos number // zlo 
+    # fix of pos number // zlo
 
     pivot_pept_ = extractor.plist[0]
     pivot_pept = extractor.extract_result(pivot_pept_)
@@ -176,7 +176,7 @@ def get_args():
     parser = ag.ArgumentParser(
         description='Grid scripts')
 
-    parser.add_argument('-m',
+    parser.add_argument('-g',
                         required=True,
                         dest='Sfn',
                         metavar='FILE.hdf5',
@@ -184,9 +184,7 @@ def get_args():
 
     parser.add_argument('-o', '--output',
                         dest='output',
-                        metavar='OUTPUT',
-                        # help='For "render" ans "cluster_to_trj" tasks \
-                        # name of output PNG image of mutiframe PDB file'
+                        metavar='OUTPUT.HDF5',
                         )
 
     parser.add_argument('--debug',
@@ -196,18 +194,6 @@ def get_args():
     parser.add_argument('--verbose',
                         action='store_true',
                         help='Be verbose')
-
-    parser.add_argument('--default_types',
-                        action='store_true',
-                        default=True,
-                        help='Use default set of atom types for Vina')
-
-#    parser.add_argument('-f',
-#                        nargs='+',
-#                        type=str,
-#                        dest='pdb_list',
-#                        metavar='FILE',
-#                        help='PDB files')
 
     parser.add_argument('-e', '--exclude',
                         nargs='*',
