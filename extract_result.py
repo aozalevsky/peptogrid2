@@ -52,7 +52,8 @@ class PepExtractor(object):
 
 #        try:
         if mpi:
-            self.resfile = h5py.File(self.resfilefn, 'r', driver='mpio', comm=mpi.comm)
+            self.resfile = h5py.File(
+                self.resfilefn, 'r', driver='mpio', comm=mpi.comm)
         else:
             self.resfile = h5py.File(self.resfilefn, 'r', driver='sec2')
 #        except IOError:
@@ -96,7 +97,7 @@ class PepExtractor(object):
         t.delCoordset(0)
         g = self.resfile[seq]
 
-        if coordset:
+        if coordset is not None:
             t.addCoordset(g['%d' % coordset][:])
 
         else:
