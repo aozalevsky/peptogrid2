@@ -53,15 +53,15 @@ padding = max(gu.avdw.values()) * 2 * \
 
 L = box + padding
 
-print 'CENTER', center
-print 'BOX', box, L
+print('CENTER', center)
+print('BOX', box, L)
 
 GminXYZ = center - L / 2.0
 GminXYZ = gu.adjust_grid(GminXYZ, step, padding)
 
 N = np.ceil((L / step)).astype(np.int)
 
-print 'GMIN', GminXYZ, N
+print('GMIN', GminXYZ, N)
 
 with open('box_coords.txt', 'w') as f:
     f.write('BOX: ' + ' '.join(GminXYZ.astype(np.str)) + '\n')
@@ -121,7 +121,9 @@ for cm in range(lm):
     t1 = time.time()
     dt = t1 - t0
     t0 = t1
-    print('\rSTEP: %d PERCENT: %.2f%% TIME: %s' % (cm, float(cm) / lm * 100, dt))
+    print(
+        'STEP: %d PERCENT: %.2f%% TIME: %s' % (
+            cm, float(cm) / lm * 100, dt))
 
     M = oddt.ob.readfile('pdbqt', m)
 
@@ -140,6 +142,7 @@ for cm in range(lm):
             if atype not in atypes:
                 continue
 
+            # Check grid boundaries
             try:
                 tSf[atype][
                     x: x + Agrid.shape[0],
@@ -149,18 +152,18 @@ for cm in range(lm):
 
                 fNUCS[iNUCS[atype]] += 1
 
+            # Ignore bad atoms
             except:
-
-                print m, A
+                # print m, A
                 pass
 
-print 'fNUCS ', fNUCS
+print('fNUCS ', fNUCS)
 
 nNUCS = np.zeros((lnucs, ), dtype=np.float32)
 
 ln = len(NUCS)
 
-for i in xrange(ln):
+for i in range(ln):
 
     mult = fNUCS[i]
 
@@ -173,25 +176,26 @@ for i in xrange(ln):
         ttSf /= mult
 
         nNUCS[i] = nmax / mult
-        print i, NUCS[i], nNUCS[i], nmax
+        print(i, NUCS[i], nNUCS[i], nmax)
 
 nmax = np.max(nNUCS)
 
-# Open matrix file in parallel mode
+# Open file for storing results
 Sf = h5py.File(Sfn, 'w')
 
-
-for i in xrange(ln):
+for i in range(ln):
 
     if mult > 0:
         ttSf = tSf[NUCS[i]]
 
         ttSf /= nmax
         ttSf *= 100.0
+
+        # Use int8 to reduce storage impact
         tG = np.ceil(ttSf).astype(np.int8)
         Sf.create_dataset(NUCS[i], data=tG)
     else:
-        print 'Array is empty for: ', NUCS[i]
+        print('Array is empty for: ', NUCS[i])
 
 Sf.close()
 
@@ -208,4 +212,4 @@ if debug:
     ps = pstats.Stats(pr, stream=s)
     ps.sort_stats(sortby)
     ps.print_stats()
-    print s.getvalue()
+    print(s.getvalue())
