@@ -16,10 +16,13 @@ import Bio.Alphabet.IUPAC
 from mpi4py import MPI
 import h5py
 
+from copy import copy
+
 np.set_printoptions(threshold='nan')
 
 natoms = ('OP1', 'OP2', 'O1P', 'O2P', 'N4', 'N6', 'O4',
           'O6', 'N7', 'N2', 'N3', 'O2', "O3'", "O5'", "O2'", "O4'",)
+
 
 def get_bounding(R, padding, step):
     minXYZ = np.amin(R, axis=0)
@@ -45,8 +48,8 @@ def sphere2grid(c, r, step, value=-np.inf):
     r2y = np.arange(-r - adj[1], r - adj[1] + step, step) ** 2
     r2z = np.arange(-r - adj[2], r - adj[2] + step, step) ** 2
     dist2 = r2x[:, None, None] + r2y[:, None] + r2z
-    nc = nc - dist2.shape[0] / 2 * step
-    vol = (dist2 <= r ** 2).astype(np.int)
+    nc = nc - dist2.shape[0] / 2.0 * step
+    vol = (dist2 <= r ** 2.0).astype(np.int)
     vol *= value
     return (nc, vol)
 
@@ -486,6 +489,7 @@ def get_args():
 
     parser.add_argument('--default_types',
                         action='store_true',
+                        default=True,
                         help='Use default set of atom types for Vina')
 
     parser.add_argument('-f',
@@ -584,20 +588,20 @@ def get_args_box():
 
 
 vina_types = (
+    # 'H',
     'C.2',
     'C.3',
     'C.ar',
-    'C.ca',
-    #    'H',
-    'N.2',
-    'N.3',
-    'N.am',
-    'N.ar',
-    'N.pl',
+    'C.cat',
     'O.2',
     'O.3',
-    'O.co',
-    'S.3'
+    'O.co2',
+    'N.3',
+    'N.4',
+    'N.ar',
+    'N.am',
+    'N.pl3',
+    'S.3',
 )
 
 
@@ -830,7 +834,184 @@ gromos_types = {
     #
     ("NME", "N"): "N",
     ("NME", "C"): "CH3",
+    ("NME", "CH3"): "CH3",
 }
+
+tripos_types = {
+    ("ACE", "O"): "O.2",
+    ("ACE", "CH3"): "C.3",
+    ("ACE", "C"): "C.2",
+    ("ALA", "CA"): "C.3",
+    ("ALA", "O"): "O.2",
+    ("ALA", "CB"): "C.3",
+    ("ALA", "C"): "C.2",
+    ("ALA", "N"): "N.am",
+    ("ARG", "C"): "C.2",
+    ("ARG", "CD"): "C.3",
+    ("ARG", "CZ"): "C.cat",
+    ("ARG", "NH1"): "N.pl3",
+    ("ARG", "CA"): "C.3",
+    ("ARG", "N"): "N.am",
+    ("ARG", "NE"): "N.pl3",
+    ("ARG", "CB"): "C.3",
+    ("ARG", "O"): "O.2",
+    ("ARG", "NH2"): "N.pl3",
+    ("ARG", "CG"): "C.3",
+    ("ASN", "OD1"): "O.2",
+    ("ASN", "N"): "N.am",
+    ("ASN", "CB"): "C.3",
+    ("ASN", "C"): "C.2",
+    ("ASN", "O"): "O.2",
+    ("ASN", "ND2"): "N.am",
+    ("ASN", "CG"): "C.2",
+    ("ASN", "CA"): "C.3",
+    ("ASP", "CB"): "C.3",
+    ("ASP", "O"): "O.2",
+    ("ASP", "C"): "C.2",
+    ("ASP", "N"): "N.am",
+    ("ASP", "OD2"): "O.co2",
+    ("ASP", "OD1"): "O.co2",
+    ("ASP", "CA"): "C.3",
+    ("ASP", "CG"): "C.2",
+    ("CYS", "CB"): "C.3",
+    ("CYS", "C"): "C.2",
+    ("CYS", "O"): "O.2",
+    ("CYS", "SG"): "S.3",
+    ("CYS", "CA"): "C.3",
+    ("CYS", "N"): "N.am",
+    ("GLN", "CG"): "C.3",
+    ("GLN", "O"): "O.2",
+    ("GLN", "NE2"): "N.am",
+    ("GLN", "C"): "C.2",
+    ("GLN", "N"): "N.am",
+    ("GLN", "OE1"): "O.2",
+    ("GLN", "CA"): "C.3",
+    ("GLN", "CD"): "C.2",
+    ("GLN", "CB"): "C.3",
+    ("GLU", "OE1"): "O.co2",
+    ("GLU", "CG"): "C.3",
+    ("GLU", "O"): "O.2",
+    ("GLU", "CD"): "C.2",
+    ("GLU", "CA"): "C.3",
+    ("GLU", "OE2"): "O.co2",
+    ("GLU", "N"): "N.am",
+    ("GLU", "CB"): "C.3",
+    ("GLU", "C"): "C.2",
+    ("GLY", "CA"): "C.3",
+    ("GLY", "C"): "C.2",
+    ("GLY", "N"): "N.am",
+    ("GLY", "O"): "O.2",
+    ("HIS", "O"): "O.2",
+    ("HIS", "NE2"): "N.ar",
+    ("HIS", "CE1"): "C.ar",
+    ("HIS", "N"): "N.am",
+    ("HIS", "CD2"): "C.ar",
+    ("HIS", "CG"): "C.ar",
+    ("HIS", "CB"): "C.3",
+    ("HIS", "CA"): "C.3",
+    ("HIS", "ND1"): "N.ar",
+    ("HIS", "C"): "C.2",
+    ("ILE", "O"): "O.2",
+    ("ILE", "N"): "N.am",
+    ("ILE", "CB"): "C.3",
+    ("ILE", "CG2"): "C.3",
+    ("ILE", "CA"): "C.3",
+    ("ILE", "C"): "C.2",
+    ("ILE", "CG1"): "C.3",
+    ("ILE", "CD"): "C.3",
+    ("LEU", "CG"): "C.3",
+    ("LEU", "N"): "N.am",
+    ("LEU", "CD1"): "C.3",
+    ("LEU", "CD2"): "C.3",
+    ("LEU", "CA"): "C.3",
+    ("LEU", "C"): "C.2",
+    ("LEU", "O"): "O.2",
+    ("LEU", "CB"): "C.3",
+    ("LYS", "CE"): "C.3",
+    ("LYS", "C"): "C.2",
+    ("LYS", "NZ"): "N.4",
+    ("LYS", "CA"): "C.3",
+    ("LYS", "CB"): "C.3",
+    ("LYS", "CG"): "C.3",
+    ("LYS", "CD"): "C.3",
+    ("LYS", "N"): "N.am",
+    ("LYS", "O"): "O.2",
+    ("MET", "SD"): "S.3",
+    ("MET", "O"): "O.2",
+    ("MET", "N"): "N.am",
+    ("MET", "CB"): "C.3",
+    ("MET", "CA"): "C.3",
+    ("MET", "CG"): "C.3",
+    ("MET", "C"): "C.2",
+    ("MET", "CE"): "C.3",
+    ("NME", "N"): "N.am",
+    ("NME", "CH3"): "C.3",
+    ("PHE", "N"): "N.am",
+    ("PHE", "C"): "C.2",
+    ("PHE", "CD1"): "C.ar",
+    ("PHE", "CD2"): "C.ar",
+    ("PHE", "O"): "O.2",
+    ("PHE", "CZ"): "C.ar",
+    ("PHE", "CA"): "C.3",
+    ("PHE", "CE2"): "C.ar",
+    ("PHE", "CE1"): "C.ar",
+    ("PHE", "CB"): "C.3",
+    ("PHE", "CG"): "C.ar",
+    ("PRO", "CA"): "C.3",
+    ("PRO", "CD"): "C.3",
+    ("PRO", "C"): "C.2",
+    ("PRO", "N"): "N.am",
+    ("PRO", "O"): "O.2",
+    ("PRO", "CG"): "C.3",
+    ("PRO", "CB"): "C.3",
+    ("SER", "CB"): "C.3",
+    ("SER", "OG"): "O.3",
+    ("SER", "N"): "N.am",
+    ("SER", "CA"): "C.3",
+    ("SER", "O"): "O.2",
+    ("SER", "C"): "C.2",
+    ("THR", "CA"): "C.3",
+    ("THR", "O"): "O.2",
+    ("THR", "N"): "N.am",
+    ("THR", "CB"): "C.3",
+    ("THR", "OG1"): "O.3",
+    ("THR", "CG2"): "C.3",
+    ("THR", "C"): "C.2",
+    ("TRP", "NE1"): "N.ar",
+    ("TRP", "CZ2"): "C.ar",
+    ("TRP", "CE3"): "C.ar",
+    ("TRP", "C"): "C.2",
+    ("TRP", "CD1"): "C.ar",
+    ("TRP", "CB"): "C.3",
+    ("TRP", "CZ3"): "C.ar",
+    ("TRP", "CE2"): "C.ar",
+    ("TRP", "O"): "O.2",
+    ("TRP", "CD2"): "C.ar",
+    ("TRP", "N"): "N.am",
+    ("TRP", "CG"): "C.ar",
+    ("TRP", "CA"): "C.3",
+    ("TRP", "CH2"): "C.ar",
+    ("TYR", "CD2"): "C.ar",
+    ("TYR", "CD1"): "C.ar",
+    ("TYR", "CE1"): "C.ar",
+    ("TYR", "CG"): "C.ar",
+    ("TYR", "CZ"): "C.ar",
+    ("TYR", "OH"): "O.3",
+    ("TYR", "N"): "N.am",
+    ("TYR", "CB"): "C.3",
+    ("TYR", "O"): "O.2",
+    ("TYR", "CA"): "C.3",
+    ("TYR", "C"): "C.2",
+    ("TYR", "CE2"): "C.ar",
+    ("VAL", "N"): "N.am",
+    ("VAL", "O"): "O.2",
+    ("VAL", "CA"): "C.3",
+    ("VAL", "CB"): "C.3",
+    ("VAL", "CG2"): "C.3",
+    ("VAL", "C"): "C.2",
+    ("VAL", "CG1"): "C.3",
+}
+
 
 
 def import_retry(name, maxtry=50):
@@ -852,6 +1033,20 @@ def choose_artypes(arg):
     elif arg == 'gromos':
         atypes_ = gromos_types.values()
         rtypes = gromos_types
+    elif arg == 'tripos_neutral':
+        atypes_ = tripos_types.values()
+        rtypes = tripos_types
+    elif arg == 'tripos_charged':
+        atypes_ = tripos_types.values()
+
+        rtypes = copy(tripos_types)
+
+        for k, v in rtypes.items():
+            r, a = k
+            if a == 'O':
+                rtypes[k] = "O.co2"
+            rtypes[(r, 'OXT')] = "O.co2"
+
     elif arg == 'vina':
         atypes_ = vina_types
         rtypes = vina_types
