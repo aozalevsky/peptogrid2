@@ -344,14 +344,26 @@ class PepDocker(object):
         if reset:
             out['checkpoint'][:] = np.zeros(out['checkpoint'].shape)
 
-        for s in self.plist:
-            if s not in out_:
-                G = out.create_group(s)
-                for i in range(
-                    int(
-                        self.config.config['Number of binding poses'][0])):
-                    dummyc = self.database[s].getCoords().shape
-                    G.create_dataset('%d' % i, dummyc, dtype=np.float)
+        recheck_plist = False
+
+        if self.mpi.rank == 0:
+            for s in self.plist:
+                if s not in out_:
+                    recheck_plist = True
+                    break
+
+        recheck_plist = self.mpi.comm.bcast(recheck_plist)
+
+        if recheck_plist:
+
+            for s in self.plist:
+                if s not in out_:
+                    G = out.create_group(s)
+                    for i in range(
+                        int(
+                            self.config.config['Number of binding poses'][0])):
+                        dummyc = self.database[s].getCoords().shape
+                        G.create_dataset('%d' % i, dummyc, dtype=np.float)
 
         return out
 
