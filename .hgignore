@@ -10,3 +10,5 @@ syntax: glob
 data
 .ropeproject
 test_ledock
+*.ipynb
+*.sqlite
