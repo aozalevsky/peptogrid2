@@ -1,6 +1,7 @@
 from chempy.brick import Brick
 from pymol import cmd
 import h5py
+import numpy as np
 
 
 def load_grid(fname, prefix='aa', ramp='jet'):
@@ -93,3 +94,44 @@ def load_grid(fname, prefix='aa', ramp='jet'):
 
 # The extend command makes this runnable as a command, from PyMOL.
 cmd.extend("load_grid", load_grid)
+
+
+def load_meta_grid(fname, prefix='meta'):
+
+    F = h5py.File(fname, 'r')
+    step = F['step'][()]
+    origin = F['origin'][()]
+
+    NUCS = set(F.keys())
+    protected = set(['origin', 'step', 'atypes'])
+    NUCS -= protected
+
+    for i in NUCS:
+        data = F[i][()]
+        b = Brick.from_numpy(data, step, origin)
+        bname = prefix + '_' + i
+        cmd.load_brick(b, bname)
+        volname = bname + '_volume'
+
+        d_min = np.min(data)
+        d_max = np.max(data)
+
+        v = np.linspace(d_min, d_max, 6)
+
+        cmd.volume(volname, bname)
+
+        print('ramp_%s' % i)
+
+        cmd.volume_ramp_new('ramp_grid', [
+            v[0], 0.00, 0.00, 1.00, 0.70,
+            v[1], 0.06, 0.93, 1.00, 0.50,
+            v[2], 0.49, 0.51, 1.00, 0.30,
+            v[3], 1.00, 1.00, 0.00, 0.10,
+            v[4], 0.80, 0.18, 1.00, 0.05,
+            v[5], 0.98, 0.01, 1.00, 0.00,
+        ])
+
+        cmd.volume_color(volname, 'ramp_grid')
+
+# The extend command makes this runnable as a command, from PyMOL.
+cmd.extend("load_meta_grid", load_meta_grid)
