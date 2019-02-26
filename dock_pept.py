@@ -444,6 +444,10 @@ class PepDocker(object):
 
         if 'plist' not in out_:
             out.create_dataset('plist', data=self.plist)
+            out['plist'].attrs['numposes'] = self.config.numposes
+            score_ = np.zeros(
+                (self.config.numposes * len(self.plist),), dtype=np.float)
+            out.create_dataset('score', data=score_)
 
         if 'checkpoint' not in out_:
             out.create_dataset(
@@ -481,7 +485,8 @@ class PepDocker(object):
             coords, e = allres[i]
             r_ = rG["%d" % i]
             r_[:] = coords
-            r_.attrs['score'] = e
+
+            self.out['score'][self.eplist[seq] * self.config.numposes + i] = e
 
     def run_docker(self):
         call = list()
