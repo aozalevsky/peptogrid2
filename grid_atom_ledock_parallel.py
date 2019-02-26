@@ -40,6 +40,7 @@ import util as gu
 class PeptMPIWorker(object):
 
     database = None
+    backend = None
     llist = None
     plist = None
     mpi = None
@@ -53,6 +54,7 @@ class PeptMPIWorker(object):
         plist=None,
         verbose=False,
         receptor=None,
+        backend=None,
         *args,
         **kwargs
     ):
@@ -93,6 +95,9 @@ class PeptMPIWorker(object):
                 'RANK: %d NOTHING TO DO' % (
                     self.mpi.rank))
 
+        if backend is not None:
+            self.backend = backend
+
     def process(self):
         pass
 
@@ -118,7 +123,11 @@ class GridCalc(PeptMPIWorker):
             args['pad']  # Largest VdW radii - 1.7A
 
         if self.mpi.rank == 0:
-            box_config = dp.ConfigLedock(args['config'])
+
+            if self.backend == 'ledock':
+                box_config = dp.ConfigLedock(args['config'])
+            elif self.backend == 'plants':
+                box_config = dp.ConfigPlants(args['config'])
 
             GminXYZ = box_config.get_min_xyz()
             self.GminXYZ = gu.adjust_grid(GminXYZ, self.step, self.padding)
@@ -406,6 +415,13 @@ def get_args():
                         dest='plist',
                         metavar='PLIST.TXT',
                         help='List of peptides')
+
+    parser.add_argument('-b', '--backend',
+                        required=True,
+                        dest='backend',
+                        metavar='BACKEND',
+                        type=str,
+                        help='Software which will be used for docking')
 
     args = parser.parse_args()
 
