@@ -62,8 +62,20 @@ class Config(object):
             )
         self.set_box(box_)
 
-    def get_vina_style_center_box(self):
-        pass
+    def is_valid(self, config=None):
+        if config is None:
+            config = self.config
+        keys = self.default.keys()
+
+        for k in keys:
+
+            if k not in config:
+                raise Exception('Missing "%s" in config' % k)
+
+            if config[k] is None:
+                raise Exception('Wrong parameters for "%s"' % k)
+
+        return True
 
     def get_min_xyz(self):
         return self.box[:, 0]
@@ -239,21 +251,6 @@ class ConfigPlants(Config):
         self.box = box
 
         self.numposes = int(self.config['cluster_structures'])
-
-    def is_valid(self, config=None):
-        if config is None:
-            config = self.config
-        keys = self.default.keys()
-
-        for k in keys:
-
-            if k not in config:
-                raise Exception('Missing "%s" in config' % k)
-
-            if config[k] is None:
-                raise Exception('Wrong parameters for "%s"' % k)
-
-        return True
 
     def write(self, fname=None):
         if fname is None:
