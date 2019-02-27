@@ -9,6 +9,7 @@ syntax: glob
 **.o
 data
 .ropeproject
-test_ledock
+test_*
 *.ipynb
 *.sqlite
+bin
