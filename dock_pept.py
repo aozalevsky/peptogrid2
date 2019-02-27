@@ -20,6 +20,7 @@ import numpy.ma as ma
 import h5py
 # from h5py import h5s
 import oddt
+import ConfigParser
 
 prody.confProDy(verbosity='error')
 
@@ -269,6 +270,80 @@ class ConfigPlants(Config):
 
         r = (self.box[0, 1] - self.box[0, 0]) / 2.0
         self.config['bindingsite_radius'] = '%.2f' % r
+
+
+class ConfigVina(Config):
+
+    default = OD([
+        ('receptor', 'pro.pdbqt'),
+        ('ligand', 'ligand.pdbqt'),
+        ('center_x', 0.0),
+        ('center_y', 0.0),
+        ('center_z', 0.0),
+        ('size_x', 20.0),
+        ('size_y', 20.0),
+        ('size_z', 20.0),
+        ('exhaustiveness', 8.0),
+        ('cpu', 12),
+        ('energy_range', 3),
+        ('num_modes', 20)
+        ])
+
+    csize = OD([])
+
+    def parse_config(self, fname):
+
+        cp = ConfigParser.SafeConfigParser()
+        cp.readfp(util.FakeSecHead(open(fname)))
+        config = dict(cp.items('asection'))
+
+        self.is_valid(config)
+
+        self.config = config
+
+        # Create box, which inscribes docking sphere
+        center = np.array([
+                      config['center_x'],
+                      config['center_y'],
+                      config['center_z'],
+                      ],
+                      dtype=np.float)
+
+        box = np.array([
+                   config['size_x'],
+                   config['size_y'],
+                   config['size_z'],
+                   ],
+                   dtype=np.float)
+
+        box = np.zeros((3, 2), dtype=np.float)
+        box[:, 0] = center - box / 2.0
+        box[:, 1] = center + box / 2.0
+
+        self.box = box
+
+        self.numposes = int(self.config['num_modes'])
+
+    def write(self, fname=None):
+        if fname is None:
+            fname = self.fname
+
+        c_ = ''
+
+        for i in self.config.items():
+            k, v = i
+            c_ += '%s = %s\n' % (k, str(v))
+
+        with open(fname, 'w') as f:
+            f.write(c_)
+
+    def _update_box(self):
+
+        r = self.box[:, 0] - self.box[:, 1]
+
+        self.config['size_x'] = r[0]
+        self.config['size_y'] = r[1]
+        self.config['size_z'] = r[2]
 
 
 class PepDatabase(object):
@@ -632,6 +707,74 @@ class DockerPlants(PepDocker):
 
         efile = '%s/ranking.csv' % self.config.config['output_dir']
         energy = np.loadtxt(efile, skiprows=1, usecols=[1], delimiter=',')
+
+        for i in range(self.config.numposes):
+
+            i_ = i + 1
+
+            fname = fname_ % (self.config.config['output_dir'], seq, i_)
+            mol = oddt.toolkit.readfile('mol2', fname).next()
+
+            e_ = energy[i]
+            c_ = mol.coords
+
+            pres.append((c_, e_))
+
+        if self.cleanup:
+            os.remove(fname)
+            os.remove("%s.mol2" % seq)
+            os.remove(self.llist_fname)
+            os.remove(self.config.fname)
+
+        return pres
+
+    def run_docker(self):
+        call = list()
+        call.append(self.docker)
+        call.append('--mode')
+        call.append('screen')
+        call.append(self.config.fname)
+        sp.check_call(call)
+
+
+class DockerVina(PepDocker):
+
+    def load_config(self, config):
+        return ConfigVina(config)
+
+    def set_receptor(self, r):
+        self.receptor = r
+        self.config.config['receptor'] = r
+
+    def prepare_files(self, seq):
+
+        self.write_config()
+
+        prody.writePDB(seq + '.pdb', self.database[seq])
+
+        call = []
+        call.append('prepare_ligand4.py')
+        call.append('-l')
+        call.append('%s.pdb' % seq)
+
+        os.remove(seq + '.pdb')
+
+    def read_result(self, seq):
+
+        M = oddt.ob.readfile('pdbqt', '%s_out.pdbqt' % seq)
+
+        ref = self.database[seq]
+
+        ref_enum = OD()
+
+        for at in ref.iterAtoms():
+            ref_enum[(at.getResnum(), at.getName())] = at.getIndex()
+
+        for S in M:
+
+            for A in S.atom_dict:
+
+                pass
 
         for i in range(self.config.numposes):
 
