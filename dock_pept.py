@@ -21,6 +21,7 @@ import h5py
 # from h5py import h5s
 import oddt
 import ConfigParser
+from pybel import ob
 
 prody.confProDy(verbosity='error')
 
@@ -474,7 +475,7 @@ class PepDocker(object):
     def run_once(self, seq):
 
         self.prepare_files(seq)
-        self.run_docker()
+        self.run_docker(seq)
         r = self.read_result(seq)
         self.write_result(seq, r)
 
@@ -558,7 +559,7 @@ class PepDocker(object):
 
             self.out['score'][self.eplist[seq] * self.config.numposes + i] = e
 
-    def run_docker(self):
+    def run_docker(self, seq=None):
         call = list()
         call.append(self.docker)
         call.append(self.config.fname)
@@ -726,7 +727,7 @@ class DockerPlants(PepDocker):
 
         return pres
 
-    def run_docker(self):
+    def run_docker(self, seq=None):
         call = list()
         call.append(self.docker)
         call.append('--mode')
@@ -759,47 +760,60 @@ class DockerVina(PepDocker):
 
     def read_result(self, seq):
 
-        M = oddt.ob.readfile('pdbqt', '%s_out.pdbqt' % seq)
+        pres = list()
 
         ref = self.database[seq]
+        coords = ref.getCoords()
 
         ref_enum = OD()
 
         for at in ref.iterAtoms():
             ref_enum[(at.getResnum(), at.getName())] = at.getIndex()
 
+        fname = ('%s_out.pdbqt' % seq)
+        M = oddt.ob.readfile('pdbqt', fname)
+        M.protein = True
+
         for S in M:
+            for res in ob.OBResidueIter(S.OBMol):
+                rNum = res.GetNum()
+                for atom in ob.OBResidueAtomIter(res):
+                    atName = res.GetAtomID(atom)
+                    atCoords = np.array([atom.x(), atom.y(), atom.z()])
 
-            for A in S.atom_dict:
+                    ind = ref_enum[(rNum, atName)]
+                    coords[ind] = atCoords
 
-                pass
+            c_ = coords
 
-        for i in range(self.config.numposes):
+            edata = S.data['REMARK'].split('\n')[0].split()
 
-            i_ = i + 1
-
-            fname = fname_ % (self.config.config['output_dir'], seq, i_)
-            mol = oddt.toolkit.readfile('mol2', fname).next()
-
-            e_ = energy[i]
-            c_ = mol.coords
+            if edata[0] == 'VINA' and edata[1] == 'RESULT:':
+                e_ = float(edata[2])
+            else:
+                raise('Wrong PDBQT energy data')
 
             pres.append((c_, e_))
 
         if self.cleanup:
             os.remove(fname)
-            os.remove("%s.mol2" % seq)
-            os.remove(self.llist_fname)
             os.remove(self.config.fname)
 
         return pres
 
-    def run_docker(self):
+    def run_docker(self, seq=None):
         call = list()
         call.append(self.docker)
-        call.append('--mode')
-        call.append('screen')
+        call.append('--config')
         call.append(self.config.fname)
+        call.append('--receptor')
+        call.append(self.config.receptor)
+        call.append('--ligand')
+        call.append('%s.pdbqt' % seq)
+        call.append('--out')
+        call.append('%s_out.pdbqt' % seq)
+        call.append('--log')
+        call.append('%s_out.log' % seq)
         sp.check_call(call)
 
 
