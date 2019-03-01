@@ -280,14 +280,16 @@ class ConfigVina(Config):
     default = OD([
         ('receptor', 'pro.pdbqt'),
         ('ligand', 'ligand.pdbqt'),
+        ('out', 'out.pdbqt'),
+        ('log', 'log.pdbqt'),
         ('center_x', 0.0),
         ('center_y', 0.0),
         ('center_z', 0.0),
-        ('size_x', 20.0),
-        ('size_y', 20.0),
-        ('size_z', 20.0),
-        ('exhaustiveness', 8.0),
-        ('cpu', 12),
+        ('size_x', 22.5),
+        ('size_y', 22.5),
+        ('size_z', 22.5),
+        ('exhaustiveness', 8),
+        ('cpu', 1),
         ('energy_range', 3),
         ('num_modes', 20)
         ])
@@ -298,7 +300,11 @@ class ConfigVina(Config):
 
         cp = ConfigParser.SafeConfigParser()
         cp.readfp(util.FakeSecHead(open(fname)))
-        config = dict(cp.items('asection'))
+        config = self.default.copy()
+        config_ = dict(cp.items('asection'))
+
+        for k in config_.keys():
+            config[k] = config_[k]
 
         self.is_valid(config)
 
@@ -312,7 +318,7 @@ class ConfigVina(Config):
                       ],
                       dtype=np.float)
 
-        box = np.array([
+        vbox = np.array([
                    config['size_x'],
                    config['size_y'],
                    config['size_z'],
@@ -320,8 +326,8 @@ class ConfigVina(Config):
                    dtype=np.float)
 
         box = np.zeros((3, 2), dtype=np.float)
-        box[:, 0] = center - box / 2.0
-        box[:, 1] = center + box / 2.0
+        box[:, 0] = center - vbox / 2.0
+        box[:, 1] = center + vbox / 2.0
 
         self.box = box
 
@@ -603,7 +609,7 @@ class DockerLedock(PepDocker):
 
     def set_receptor(self, r):
         self.receptor = r
-        self.config.config['Receptor'] = [r]
+        self.config.config['receptor'] = [r]
 
     def prepare_files(self, seq):
 
@@ -747,6 +753,10 @@ class DockerVina(PepDocker):
 
     def prepare_files(self, seq):
 
+        self.config.config['ligand'] = '%s.pdbqt' % seq
+        self.config.config['out'] = '%s_out.pdbqt' % seq
+        self.config.config['log'] = '%s_out.log' % seq
+
         self.write_config()
 
         prody.writePDB(seq + '.pdb', self.database[seq])
@@ -755,6 +765,7 @@ class DockerVina(PepDocker):
         call.append('prepare_ligand4.py')
         call.append('-l')
         call.append('%s.pdb' % seq)
+        sp.check_call(call)
 
         os.remove(seq + '.pdb')
 
@@ -763,7 +774,7 @@ class DockerVina(PepDocker):
         pres = list()
 
         ref = self.database[seq]
-        coords = ref.getCoords()
+        rcoords = ref.getCoords()
 
         ref_enum = OD()
 
@@ -772,13 +783,14 @@ class DockerVina(PepDocker):
 
         fname = ('%s_out.pdbqt' % seq)
         M = oddt.ob.readfile('pdbqt', fname)
-        M.protein = True
 
         for S in M:
+            S.protein = True
+            coords = np.zeros(rcoords.shape)
             for res in ob.OBResidueIter(S.OBMol):
                 rNum = res.GetNum()
                 for atom in ob.OBResidueAtomIter(res):
-                    atName = res.GetAtomID(atom)
+                    atName = res.GetAtomID(atom).strip()
                     atCoords = np.array([atom.x(), atom.y(), atom.z()])
 
                     ind = ref_enum[(rNum, atName)]
@@ -806,14 +818,6 @@ class DockerVina(PepDocker):
         call.append(self.docker)
         call.append('--config')
         call.append(self.config.fname)
-        call.append('--receptor')
-        call.append(self.config.receptor)
-        call.append('--ligand')
-        call.append('%s.pdbqt' % seq)
-        call.append('--out')
-        call.append('%s_out.pdbqt' % seq)
-        call.append('--log')
-        call.append('%s_out.log' % seq)
         sp.check_call(call)
 
 
@@ -906,5 +910,9 @@ if __name__ == '__main__':
         docker = DockerLedock(**args)
     elif b == 'plants':
         docker = DockerPlants(**args)
+    elif b == 'vina':
+        docker = DockerVina(**args)
+    else:
+        raise('Wrong docker backend')
 
     docker.dock()
