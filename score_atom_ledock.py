@@ -25,12 +25,11 @@
 import h5py
 
 import numpy as np
-import time
-import os
 import argparse as ag
 
 import util as gu
 import extract_result as er
+import tqdm
 
 
 def process(args):
@@ -101,16 +100,8 @@ def process(args):
     for i in NUCS:
         gNUCS[i] = Sf[i][:]
 
-    t0 = time.time()
-
-    for cm in range(lM):
+    for cm in tqdm.trange(lM):
         m = extractor.plist[cm]
-
-        t1 = time.time()
-        dt = t1 - t0
-        t0 = t1
-        print('STEP: %d PERCENT: %.2f%% TIME: %s' % (
-            cm, float(cm) / lM * 100, dt))
 
         try:
             S = extractor.extract_result(m)
