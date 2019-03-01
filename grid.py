@@ -26,10 +26,10 @@
 
 import numpy as np
 import bottleneck as bn
-import time
 import argparse as ag
 import sys
 import h5py
+from tqdm import tqdm
 sys.path.append('/home/golovin/_scratch/progs/grid_scripts/')
 sys.path.append('/home/domain/silwer/work/grid_scripts/')
 import extract_result as er
@@ -169,6 +169,7 @@ class GridCalc(PeptMPIWorker):
 
         NUCS = self.atypes
         iNUCS = dict(map(lambda x: (x[1], x[0],), enumerate(NUCS)))
+        iNUCS = self.mpi.comm.bcast(iNUCS)
 
         lnucs = len(NUCS)
         fNUCS = np.zeros((lnucs, ), dtype=np.float)
@@ -178,29 +179,25 @@ class GridCalc(PeptMPIWorker):
 
         tSf = dict()
         for i in NUCS:
-            tSf[i] = np.zeros(self.N, dtype=np.float32)
+            tSf[i] = np.zeros(self.N, dtype=np.float)
 
         args['mpi'] = self.mpi
         extractor = er.PepExtractor(**args)
         lM = len(self.aplist)
 
-        if self.mpi.rank == 0:
-            m = self.aplist[0]
-            S = extractor.extract_result(m)
-            lS = S.numCoordsets()
-
         self.mpi.comm.Barrier()
 
-        t0 = time.time()
+        if self.mpi.rank == 0:
+            pbar = tqdm(total=lM)
+
+        tota_ = 0
+        totba_ = 0
 
         for cm in range(lM):
             m = self.aplist[cm]
 
-            t1 = time.time()
-            dt = t1 - t0
-            t0 = t1
-            print('STEP: %d PERCENT: %.2f%% TIME: %s' % (
-                cm, float(cm) / lM * 100, dt))
+            if self.mpi.rank == 0:
+                pbar.update(cm)
 
             try:
                 S = extractor.extract_result(m)
@@ -217,7 +214,6 @@ class GridCalc(PeptMPIWorker):
                 for a in S.iterAtoms():
 
                     # skip hydrogens
-
                     if a.getElement() == 'H':
                         continue
 
@@ -243,111 +239,96 @@ class GridCalc(PeptMPIWorker):
                         ] += Agrid
 
                         fNUCS[iNUCS[atype]] += 1
+                        tota_ += 1
 
                     except:
-                        print(m, a)
+                        # print(m, a)
+                        totba_ += 1
+                        pass
 
+        if self.mpi.rank == 0:
+            pbar.close()
+
+        self.mpi.comm.Barrier()
+
+        if self.mpi.rank == 0:
+            print('Collecting grids')
+
+        fNUCS_ = self.mpi.comm.allreduce(fNUCS)
         nNUCS = np.zeros((lnucs, ), dtype=np.float)
 
-        Sfn = args['Sfn']
+        tota = self.mpi.comm.reduce(tota_)
+        totba = self.mpi.comm.reduce(totba_)
+
+        for i in range(lnucs):
+            NUC_ = NUCS[i]
+
+            if self.mpi.rank != 0:
+                self.mpi.comm.Send(tSf[NUC_], dest=0, tag=i)
+
+            elif self.mpi.rank == 0:
+                for j in range(1, self.mpi.NPROCS):
+                    tG = np.empty(tSf[NUC_].shape, dtype=np.float)
+                    self.mpi.comm.Recv(tG, source=j, tag=i)
+                    tSf[NUC_] += tG
+                nNUCS[i] = np.max(tSf[NUC_])
+
+        nNUCS_ = self.mpi.comm.bcast(nNUCS)
 
         self.mpi.comm.Barrier()
 
         # Allocate results file
 
+        Sfn = args['Sfn']
+
         if self.mpi.rank == 0:
+
+            print('Saving data')
+            # Sf.atomic = True
+
+            nmax = bn.nanmax(np.divide(nNUCS_, fNUCS_))
 
             Sf = h5py.File(Sfn, 'w')
 
             for i in range(lnucs):
-                Sf.create_dataset(NUCS[i], tSf[NUCS[i]].shape, dtype='f')
+
+                NUC_ = NUCS[i]
+                iNUC_ = iNUCS[NUC_]
+                mult = fNUCS_[iNUC_]
+
+                if mult > 0.0:
+
+                    tG = tSf[NUC_]
+
+                    med = np.median(tG)
+                    tG[tG < (med)] = 0
+
+                    tG /= float(mult)
+                    tG /= float(nmax)
+                    tG *= 100.0
+
+                    tSf[NUC_] = tG
+
+                else:
+                    print('Array is empty for: ', NUC_)
+
+                Sf.create_dataset(NUC_, data=tSf[NUC_])
 
             Gstep = np.array(
-                [self.step, self.step, self.step], dtype=np.float32)
+                [self.step, self.step, self.step], dtype=np.float)
             Sf.create_dataset('step', data=Gstep)
             Sf.create_dataset('origin', data=self.GminXYZ)
             Sf.create_dataset(
                 'atypes', data=np.array([args['atypes'], ], dtype='S20'))
+
+            print('Total bad atoms %d of %d' % (totba, tota))
 
             Sf.close()
 
         self.mpi.comm.Barrier()
         # Open matrix file in parallel mode
 
-        Sf = h5py.File(Sfn, 'r+', driver='mpio', comm=self.mpi.comm)
-        Sf.atomic = True
-
-        for i in range(lnucs):
-            mult = fNUCS[i]
-
-            if mult > 0.0:
-                ttSf = tSf[NUCS[i]]
-
-                tG = ttSf
-
-                Sf[NUCS[i]][:] += tG[:]
-
-        self.mpi.comm.Barrier()
-
-        fNUCS_ = self.mpi.comm.allreduce(fNUCS)
-
-        i = self.mpi.rank
-
-        while i < lnucs:
-
-            mult = fNUCS_[i]
-
-            if mult > 0:
-                ttSf = Sf[NUCS[i]][:]
-                nNUCS[i] = np.max(ttSf)
-
-            print(i, NUCS[i], nNUCS[i])
-
-            i += self.mpi.NPROCS
-
-        self.mpi.comm.Barrier()
-
-        print nNUCS
-        nNUCS_ = self.mpi.comm.allreduce(nNUCS)
-
-        print 'nNUCS', nNUCS_
-        print 'fNUCS', fNUCS_
-
-        nmax = bn.nanmax(np.divide(nNUCS_, fNUCS_))
-
-        if self.mpi.rank == 0:
-            print('NMAX', nmax)
-
-        self.mpi.comm.Barrier()
-
-        i = self.mpi.rank
-
-        while i < lnucs:
-
-            mult = fNUCS_[i]
-
-            ttSf = Sf[NUCS[i]][:]
-
-            if mult > 0:
-
-                med = np.median(ttSf)
-                ttSf[ttSf < (med)] = 0
-
-                ttSf /= float(mult)
-                ttSf /= float(nmax)
-                ttSf *= 100.0
-
-            else:
-                print('Array is empty for: ', NUCS[i])
-
-            tG = ttSf
-            Sf[NUCS[i]][:] = tG[:]
-
-            i += self.mpi.NPROCS
-
-        self.mpi.comm.Barrier()
         self.database.close()
-        Sf.close()
 
 
 def get_args():
