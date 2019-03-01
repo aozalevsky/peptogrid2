@@ -96,6 +96,15 @@ class Config(object):
     def _update_box(self):
         pass
 
+    def write(self, fname=None):
+        if fname is None:
+            fname = self.fname
+
+        cfg = self.cfg_to_str()
+
+        with open(fname, 'w') as f:
+            f.write(cfg)
+
 
 class ConfigLedock(Config):
 
@@ -161,9 +170,7 @@ class ConfigLedock(Config):
 
         return True
 
-    def write(self, fname=None):
-        if fname is None:
-            fname = self.fname
+    def cfg_to_str(self):
 
         c_ = ''
 
@@ -175,8 +182,7 @@ class ConfigLedock(Config):
             c_ += '\n'
             c_ += '\n'
 
-        with open(fname, 'w') as f:
-            f.write(c_)
+        return c_
 
     def _update_box(self):
 
@@ -253,18 +259,14 @@ class ConfigPlants(Config):
 
         self.numposes = int(self.config['cluster_structures'])
 
-    def write(self, fname=None):
-        if fname is None:
-            fname = self.fname
-
+    def cfg_to_str(self):
         c_ = ''
 
         for i in self.config.items():
             k, v = i
             c_ += '%s %s\n' % (k, str(v))
 
-        with open(fname, 'w') as f:
-            f.write(c_)
+        return c_
 
     def _update_box(self):
 
@@ -324,18 +326,14 @@ class ConfigVina(Config):
 
         self.numposes = int(self.config['num_modes'])
 
-    def write(self, fname=None):
-        if fname is None:
-            fname = self.fname
-
+    def cfg_to_str(self):
         c_ = ''
 
         for i in self.config.items():
             k, v = i
             c_ += '%s = %s\n' % (k, str(v))
 
-        with open(fname, 'w') as f:
-            f.write(c_)
+        return c_
 
     def _update_box(self):
 
