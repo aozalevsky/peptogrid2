@@ -24,7 +24,6 @@ class PepBuilder(object):
             ncap='ace',
             ccap='nme',
             charged=True,
-            rpath=None,
             *args,
             **kwargs):
 
@@ -41,50 +40,24 @@ class PepBuilder(object):
             tseq = seq[i:i + l]
             print(tseq)
             if caps:
-                self.pymol.cmd.editor.attach_amino_acid('pk1', ncap)
+                self.pymol.cmd.editor.attach_amino_acid(
+                    'pk1', ncap)
+                self.pymol.cmd.editor.attach_amino_acid(
+                    'pk1', ott(tseq[0]).lower())
+            else:
+                self.pymol.cmd.editor.attach_amino_acid(
+                    'pk1', 'nt_%s' % ott(tseq[0]).lower())
 
-            for a in tseq:
+            for a in tseq[1:-1]:
                 self.pymol.cmd.editor.attach_amino_acid('pk1', ott(a).lower())
 
             if caps:
+                self.pymol.cmd.editor.attach_amino_acid(
+                    'pk1', ott(tseq[-1]).lower())
                 self.pymol.cmd.editor.attach_amino_acid('pk1', ccap)
-
-            if not caps:
-                self.pymol.cmd.run(rpath)
-                self.pymol.cmd.do("renumber all, 1")
-
-                rn_ = {'rn': []}
-                self.pymol.cmd.iterate(
-                    "i. 1 and n. N",
-                    "rn.append(resn)",
-                    space=rn_)
-                rn = rn_['rn'][0]
-
-                hs = 2
-                if rn == 'PRO':
-                    hs = 1
-
-                self.pymol.cmd.select('pk1', 'i. 1 and name N')
-                self.pymol.cmd.attach('H', 3, 1)
-                self.pymol.cmd.alter('n. H01', 'elem="H"')
-                self.pymol.cmd.alter('n. H01', 'name="H%d"' % hs)
-
-                if charged:
-                    self.pymol.cmd.attach('H', 3, 1)
-                    self.pymol.cmd.alter('n. H01', 'elem="H"')
-                    self.pymol.cmd.alter('n. H01', 'name="H%d"' % (hs + 1))
-
-                self.pymol.cmd.select('pk1', 'i. %d and name C' % l)
-                self.pymol.cmd.attach('O', 1, 1)
-                self.pymol.cmd.alter('name O01', 'elem="O"')
-                self.pymol.cmd.alter('name O01', 'name="OXT"')
-
-                if charged:
-                    pass
-                else:
-                    self.pymol.cmd.select('pk1', 'i. %d and name OXT' % l)
-                    self.pymol.cmd.attach('H', 1, 1)
-                    self.pymol.cmd.alter('n. H01', 'name="HO"')
+            else:
+                self.pymol.cmd.editor.attach_amino_acid(
+                    'pk1', 'ct_%s' % ott(tseq[-1]).lower())
 
             if not out:
                 out = '%s.pdb' % seq
@@ -163,14 +136,6 @@ def get_args():
                         default='ace',
                         choices=['ace'],
                         help='Cap to be placed on the N term')
-
-    parser.add_argument('-r', '--renumber',
-                        type=str,
-                        dest='rpath',
-                        metavar='RENUMBER_PATH',
-                        required=True,
-                        help='Path to renumber script')
-
 
     parser.add_argument('-v', '--verbose',
                         action='store_true',
