@@ -128,6 +128,8 @@ class GridCalc(PeptMPIWorker):
                 box_config = dp.ConfigLedock(args['config'])
             elif self.backend == 'plants':
                 box_config = dp.ConfigPlants(args['config'])
+            elif self.backend == 'vina':
+                box_config = dp.ConfigVina(args['config'])
 
             GminXYZ = box_config.get_min_xyz()
             self.GminXYZ = gu.adjust_grid(GminXYZ, self.step, self.padding)
