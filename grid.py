@@ -30,6 +30,10 @@ import argparse as ag
 import sys
 import h5py
 from tqdm import tqdm
+from pyRMSD.matrixHandler import MatrixHandler
+import scipy
+from sklearn.cluster import AffinityPropagation
+
 sys.path.append('/home/golovin/_scratch/progs/grid_scripts/')
 sys.path.append('/home/domain/silwer/work/grid_scripts/')
 import extract_result as er
@@ -112,6 +116,7 @@ class GridCalc(PeptMPIWorker):
 
     atypes = None
     rtypes = None
+    cluster = None
 
     def __init__(self, args):
         super(GridCalc, self).__init__(**args)
@@ -164,6 +169,7 @@ class GridCalc(PeptMPIWorker):
         self.box_config = self.mpi.comm.bcast(self.box_config)
         self.GminXYZ = self.mpi.comm.bcast(self.GminXYZ)
         self.N = self.mpi.comm.bcast(self.N)
+        self.cluster = args['cluster']
 
     def process(self, args=None):
         if not args:
@@ -208,8 +214,24 @@ class GridCalc(PeptMPIWorker):
                 continue
 
             lS = S.numCoordsets()
+            tlS = range(lS)
 
-            for S_ in range(lS):
+            if self.cluster is True:
+                resc = S.getCoordsets()
+                cl = 'NOSUP_SERIAL_CALCULATOR'
+
+                mHandler = MatrixHandler()
+                matrix = mHandler.createMatrix(resc, cl)
+                mat = scipy.spatial.distance.squareform(matrix.get_data())
+                smatrix = (mat ** 2) * (-1)
+                aff = AffinityPropagation(affinity='precomputed')
+                aff_cluster = aff.fit(smatrix)
+                tlS = aff_cluster.cluster_centers_indices_
+
+            if tlS is None:
+                continue
+
+            for S_ in tlS:
 
                 S.setACSIndex(S_)
 
@@ -405,6 +427,11 @@ def get_args():
                         metavar='BACKEND',
                         type=str,
                         help='Software which will be used for docking')
+
+    parser.add_argument('--cluster',
+                        dest='cluster',
+                        action='store_true',
+                        help='Internal clustering with Affinity Propagation')
 
     args = parser.parse_args()
 
