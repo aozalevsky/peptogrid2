@@ -200,11 +200,15 @@ class ConfigPlants(Config):
         ('protein_file', 'pro.mol2'),
         ('ligand_list', 'ligands_list'),
         ('output_dir', 'results'),
-        ('write_multi_mol2', '0'),
+        ('write_multi_mol2', 1),
         ('bindingsite_center', None),
         ('bindingsite_radius', None),
         ('cluster_structures', 20),
-        ('cluster_rmsd', 1.0)
+        ('cluster_rmsd', 1.0),
+        ('write_protein_conformations', 0),
+        ('write_protein_bindingsite', 0),
+        ('write_protein_splitted', 0),
+#        ('aco_sigma', 5),
         ])
 
     csize = OD([
@@ -217,7 +221,11 @@ class ConfigPlants(Config):
         ('bindingsite_center', 3),
         ('bindingsite_radius', 1),
         ('cluster_structures', 1),
-        ('cluster_rmsd', 1)
+        ('cluster_rmsd', 1),
+        ('write_protein_conformations', 1),
+        ('write_protein_bindingsite', 1),
+        ('write_protein_splitted', 1),
+ #       ('aco_sigma', 1),
         ])
 
     def parse_config(self, fname):
@@ -706,28 +714,30 @@ class DockerPlants(PepDocker):
             f.write('%s.mol2\n' % seq)
 
     def read_result(self, seq):
-        fname_ = "%s/%s_entry_00001_conf_%02d.mol2"
 
         pres = list()
 
-        efile = '%s/ranking.csv' % self.config.config['output_dir']
+        efile = "%s/ranking.csv" % self.config.config['output_dir']
+        fname = "%s/docked_ligands.mol2" % self.config.config['output_dir']
         energy = np.loadtxt(efile, skiprows=1, usecols=[1], delimiter=',')
 
-        for i in range(self.config.numposes):
+        mol = oddt.toolkit.readfile('mol2', fname)
 
-            i_ = i + 1
+        i = 0
 
-            fname = fname_ % (self.config.config['output_dir'], seq, i_)
-            mol = oddt.toolkit.readfile('mol2', fname).next()
+        for m in mol:
 
             e_ = energy[i]
-            c_ = mol.coords
+            c_ = m.coords
 
             pres.append((c_, e_))
 
+            i += 1
+
         if self.cleanup:
             os.remove(fname)
-            os.remove("%s.mol2" % seq)
+            os.remove(efile)
+            # os.remove("%s.mol2" % seq)
             os.remove(self.llist_fname)
             os.remove(self.config.fname)
 
