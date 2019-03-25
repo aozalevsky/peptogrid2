@@ -208,7 +208,7 @@ class ConfigPlants(Config):
         ('write_protein_conformations', 0),
         ('write_protein_bindingsite', 0),
         ('write_protein_splitted', 0),
-#        ('aco_sigma', 5),
+        # ('aco_sigma', 5),
         ])
 
     csize = OD([
@@ -225,7 +225,7 @@ class ConfigPlants(Config):
         ('write_protein_conformations', 1),
         ('write_protein_bindingsite', 1),
         ('write_protein_splitted', 1),
- #       ('aco_sigma', 1),
+        ('aco_sigma', 1),
         ])
 
     def parse_config(self, fname):
@@ -384,6 +384,7 @@ class PepDatabase(object):
 class PepDocker(object):
 
     docker = None
+    converter = None
     database = None
     config = None
     checkpoint = None
@@ -399,6 +400,7 @@ class PepDocker(object):
     def __init__(
         self,
         docker=None,
+        converter=None,
         database=None,
         config=None,
         checkpoint=None,
@@ -421,6 +423,9 @@ class PepDocker(object):
             self.docker = os.path.abspath(docker)
         else:
             raise Exception('Missing Docker software!')
+
+        if converter:
+            self.converter = os.path.abspath(converter)
 
         self.database = PepDatabase(database).database
 
@@ -704,11 +709,14 @@ class DockerPlants(PepDocker):
         self.write_config()
 
         prody.writePDB(seq + '.pdb', self.database[seq])
-        mol = oddt.toolkit.readfile('pdb', seq + '.pdb').next()
-        os.remove(seq + '.pdb')
 
-        mol.title = seq
-        mol.write('mol2', seq + '.mol2', overwrite=True)
+        call = [self.converter]
+        call.extend(['--mode', 'complete'])
+        call.append(seq + '.pdb')
+        call.append(seq + '.mol2')
+        sp.check_call(call)
+
+        os.remove(seq + '.pdb')
 
         with open(llist, 'w') as f:
             f.write('%s.mol2\n' % seq)
@@ -873,6 +881,12 @@ def get_args():
                         dest='docker',
                         required=True,
                         metavar='LEDOCK',
+                        help='Path to ledock')
+
+    parser.add_argument('--converter',
+                        type=str,
+                        dest='converter',
+                        metavar='CONVERTER',
                         help='Path to ledock')
 
     parser.add_argument('-p', '--plist',
