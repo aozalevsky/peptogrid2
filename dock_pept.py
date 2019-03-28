@@ -622,7 +622,7 @@ class DockerLedock(PepDocker):
 
     def set_receptor(self, r):
         self.receptor = r
-        self.config.config['receptor'] = [r]
+        self.config.config['Receptor'] = [r]
 
     def prepare_files(self, seq):
 
