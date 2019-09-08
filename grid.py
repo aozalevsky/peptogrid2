@@ -217,7 +217,7 @@ class GridCalc(PeptMPIWorker):
             tlS = range(lS)
 
             if self.cluster is True:
-                resc = S.getCoordsets()
+                resc = S.select('not element H').getCoordsets()
                 cl = 'NOSUP_SERIAL_CALCULATOR'
 
                 mHandler = MatrixHandler()
