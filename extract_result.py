@@ -56,10 +56,15 @@ class PepExtractor(object):
                 self.resfilefn, 'r', driver='mpio', comm=mpi.comm)
         else:
             self.resfile = h5py.File(self.resfilefn, 'r', driver='sec2')
+
 #        except IOError:
 #            raise Exception("Can't open result file")
 
         self.overwrite = overwrite
+
+    def get_resfile_plist(self):
+        plist = self.resfile['plist']
+        return plist
 
     def write_all(self):
         N = len(self.plist)
