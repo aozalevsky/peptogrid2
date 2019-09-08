@@ -155,7 +155,7 @@ def process(args):
     tscore.sort(order='score')
     tscore['score'] /= tscore['score'][-1]
 
-    np.savetxt('a_score_table.csv', tscore[::-1], fmt="%s\t%.2f")
+    np.savetxt(args['output'][:-4] + 'csv', tscore[::-1], fmt="%s\t%.2f")
 
     tSf.close()
     Sf.close()
@@ -175,6 +175,7 @@ def get_args():
 
     parser.add_argument('-o', '--output',
                         dest='output',
+                        required=True,
                         metavar='OUTPUT.HDF5',
                         )
 
