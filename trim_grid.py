@@ -58,7 +58,10 @@ SSfn = sys.argv[2]
 
 tSSf = h5py.File(tSSfn, 'r')
 GminXYZ = tSSf['origin'][:]
-atypes = tSSf['atypes'][:]
+try:
+    atypes = tSSf['atypes'][:]
+except:
+    atypes = None
 step = tSSf['step'][0]
 
 SSf = h5py.File(SSfn, 'w')
@@ -114,7 +117,8 @@ Gstep = np.array([step, step, step], dtype=np.float)
 
 SSf.create_dataset('step', data=Gstep)
 SSf.create_dataset('origin', data=GminXYZ)
-SSf.create_dataset('atypes', data=atypes)
+if atypes is not None:
+    SSf.create_dataset('atypes', data=atypes)
 
 SSf.close()
 
