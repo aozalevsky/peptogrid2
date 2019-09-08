@@ -21,8 +21,8 @@ class PepBuilder(object):
             out=None,
             caps=False,
             kmers=None,
-            ncap='ace',
-            ccap='nme',
+            ncap=None,
+            ccap=None,
             charged=True,
             *args,
             **kwargs):
@@ -30,6 +30,15 @@ class PepBuilder(object):
         self.pymol.cmd.set('pdb_use_ter_records', 0)
 
         L = len(seq)
+
+
+        if caps is True:
+
+            if ccap is None:
+                ccap = 'nme'
+
+            if ncap is None:
+                ncap = 'ace'
 
         if kmers:
             l = kmers
@@ -39,7 +48,8 @@ class PepBuilder(object):
         for i in range(L - l + 1):
             tseq = seq[i:i + l]
             print(tseq)
-            if caps:
+
+            if caps or ncap:
                 self.pymol.cmd.editor.attach_amino_acid(
                     'pk1', ncap)
                 self.pymol.cmd.editor.attach_amino_acid(
@@ -51,7 +61,7 @@ class PepBuilder(object):
             for a in tseq[1:-1]:
                 self.pymol.cmd.editor.attach_amino_acid('pk1', ott(a).lower())
 
-            if caps:
+            if caps or ccap:
                 self.pymol.cmd.editor.attach_amino_acid(
                     'pk1', ott(tseq[-1]).lower())
                 self.pymol.cmd.editor.attach_amino_acid('pk1', ccap)
@@ -125,7 +135,6 @@ def get_args():
                         type=str,
                         dest='ccap',
                         metavar='ENDCAP',
-                        default='nme',
                         choices=['nme', 'amc'],
                         help='Cap to be placed on the C term')
 
@@ -133,7 +142,6 @@ def get_args():
                         type=str,
                         dest='ncap',
                         metavar='ENDCAP',
-                        default='ace',
                         choices=['ace'],
                         help='Cap to be placed on the N term')
 
