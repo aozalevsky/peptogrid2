@@ -633,10 +633,14 @@ class DockerLedock(PepDocker):
         self.write_config()
 
         prody.writePDB(seq + '.pdb', self.database[seq])
-        mol = oddt.toolkit.readfile('pdb', seq + '.pdb').next()
-        os.remove(seq + '.pdb')
 
-        mol.write('mol2', seq + '.mol2', overwrite=True)
+        call = [self.converter]
+        call.extend(['--mode', 'complete'])
+        call.append(seq + '.pdb')
+        call.append(seq + '.mol2')
+        sp.check_call(call)
+
+        os.remove(seq + '.pdb')
 
         with open(llist, 'w') as f:
             f.write('%s.mol2\n' % seq)
