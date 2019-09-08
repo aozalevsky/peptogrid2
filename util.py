@@ -17,8 +17,9 @@ from mpi4py import MPI
 import h5py
 
 from copy import copy
+import sys
 
-np.set_printoptions(threshold='nan')
+np.set_printoptions(threshold=sys.maxsize)
 
 natoms = ('OP1', 'OP2', 'O1P', 'O2P', 'N4', 'N6', 'O4',
           'O6', 'N7', 'N2', 'N3', 'O2', "O3'", "O5'", "O2'", "O4'",)
@@ -198,6 +199,11 @@ atomsdir = {
     'ND1': 'CE1',
     'OP1': 'P',
     'OP2': 'P',
+    'NH1': 'CZ',
+    'NH2': 'CZ',
+    'NE': 'CZ',
+    'NZ': 'CE',
+    'N': 'CA',
 }
 
 
