@@ -1,0 +1,15 @@
+syntax: glob
+**.pyc
+**.log
+**.swp
+**.swo
+**.c
+**.html
+**.so
+**.o
+data
+.ropeproject
+test_*
+*.ipynb
+*.sqlite
+bin
