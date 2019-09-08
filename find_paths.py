@@ -21,7 +21,7 @@ G = None
 
 if mpi.rank == 0:
     edges = np.load(sys.argv[3])
-    G = nx.from_edgelist(edges, create_using=nx.DiGraph())
+    G = nx.from_edgelist(edges[:, :2], create_using=nx.DiGraph())
     uG = G.to_undirected()
     comps = list(nx.connected_component_subgraphs(uG))
     print('total components', len(comps))

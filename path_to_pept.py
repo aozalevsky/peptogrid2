@@ -75,19 +75,21 @@ if mpi.rank == 0:
 
 i = mpi.rank
 
+plist = res.get_resfile_plist()
+
 while i < lallpath:
     # while i < 10:
     pbar.update(i)
 
     p = allpath[i]
 
-    s, m = unbar(res.plist, p[0])
+    s, m = unbar(plist, p[0])
     seq = s
     r = res.extract_result(s, m)
 
     if len(p) > 1:
         for j in range(1, len(p)):
-            s, m = unbar(res.plist, p[j])
+            s, m = unbar(plist, p[j])
             seq += s[1:]
             r2 = res.extract_result(s, m)
             r = merge_peptides(r, r2)
