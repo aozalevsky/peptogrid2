@@ -425,6 +425,10 @@ def get_args():
                         required=True,
                         dest='backend',
                         metavar='BACKEND',
+                        choices=[
+                            'vina',
+                            'plants',
+                            'ledock'],
                         type=str,
                         help='Software which will be used for docking')
 
