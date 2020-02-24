@@ -21,7 +21,12 @@ import h5py
 # from h5py import h5s
 import oddt
 import ConfigParser
-from pybel import ob
+
+# check if we have openbabel < 3.0.0
+try:
+    from pybel import ob
+except ImportError:
+    from openbabel import openbabel as ob
 
 prody.confProDy(verbosity='error')
 
