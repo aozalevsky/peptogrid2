@@ -63,11 +63,11 @@ def drawVinaBox(fname, linewidth=2.0, r=1.0, g=1.0, b=1.0):
         maxY = GmaxXYZ[1]
         maxZ = GmaxXYZ[2]
 
-        print "Box dimensions (%.2f, %.2f, %.2f)" % (maxX-minX, maxY-minY, maxZ-minZ)
+        print("Box dimensions (%.2f, %.2f, %.2f)" % (maxX-minX, maxY-minY, maxZ-minZ))
 
         padding = 0
         if padding != 0:
-                 print "Box dimensions + padding (%.2f, %.2f, %.2f)" % (maxX-minX, maxY-minY, maxZ-minZ)
+                 print("Box dimensions + padding (%.2f, %.2f, %.2f)" % (maxX-minX, maxY-minY, maxZ-minZ))
 
         boundingBox = [
                 LINEWIDTH, float(linewidth),
