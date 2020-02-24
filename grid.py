@@ -195,8 +195,8 @@ class GridCalc(PeptMPIWorker):
 
         self.mpi.comm.Barrier()
 
-        if self.mpi.rank == 0:
-            pbar = tqdm(total=lM)
+#        if self.mpi.rank == 0:
+#            pbar = tqdm(total=lM)
 
         tota_ = 0
         totba_ = 0
@@ -204,8 +204,10 @@ class GridCalc(PeptMPIWorker):
         for cm in range(lM):
             m = self.aplist[cm]
 
-            if self.mpi.rank == 0:
-                pbar.update(cm)
+            print('Rank %d model %d of %d' % (self.mpi.rank, cm, lM))
+
+#            if self.mpi.rank == 0:
+#                pbar.update(cm)
 
             try:
                 S = extractor.extract_result(m)
@@ -270,8 +272,8 @@ class GridCalc(PeptMPIWorker):
                         totba_ += 1
                         pass
 
-        if self.mpi.rank == 0:
-            pbar.close()
+#        if self.mpi.rank == 0:
+#            pbar.close()
 
         self.mpi.comm.Barrier()
 
