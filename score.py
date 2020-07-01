@@ -192,14 +192,14 @@ def get_args():
                         type=str,
                         dest='excl',
                         metavar='TYPE',
-                        help='Vina types to exclude from scoring')
+                        help='Atom types to exclude from scoring')
 
     parser.add_argument('-i', '--include',
                         nargs='*',
                         type=str,
                         dest='incl',
                         metavar='TYPE',
-                        help='Vina types to exclude from scoring')
+                        help='Atom types to include into scoring')
 
     parser.add_argument('-s', '--step',
                         type=float,
