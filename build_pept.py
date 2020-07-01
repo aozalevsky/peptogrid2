@@ -24,13 +24,24 @@ class PepBuilder(object):
             ncap=None,
             ccap=None,
             charged=True,
+            ss='anti-beta-sheet',
             *args,
             **kwargs):
 
         self.pymol.cmd.set('pdb_use_ter_records', 0)
 
-        L = len(seq)
+        enum_ss = {
+            'alpha-helix': 1,
+            'anti-beta-sheet': 2,
+            'beta-sheet': 3,
+            'extended': 4
+            }
 
+        ess = enum_ss[ss]
+
+        self.pymol.cmd.set('secondary_structure', ess)
+
+        L = len(seq)
 
         if caps is True:
 
@@ -143,6 +154,18 @@ def get_args():
                         dest='ncap',
                         metavar='ENDCAP',
                         choices=['ace'],
+                        help='Cap to be placed on the N term')
+
+    parser.add_argument('--ss',
+                        type=str,
+                        dest='ss',
+                        metavar='SECONDARY_STRUCTURE',
+                        default='anti-beta-sheet',
+                        choices=[
+                            'alpha-helix',
+                            'anti-beta-sheet',
+                            'beta-sheet',
+                            'extended'],
                         help='Cap to be placed on the N term')
 
     parser.add_argument('-v', '--verbose',
