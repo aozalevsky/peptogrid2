@@ -13,3 +13,4 @@ test_*
 *.ipynb
 *.sqlite
 bin
+assembly
